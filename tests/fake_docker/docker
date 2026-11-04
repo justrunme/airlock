@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""Fake docker executable for testing."""
+
+import base64
+import io
+import json
+import os
+import sys
+import tarfile
+
+# Log the command
+log_file = os.environ.get("FAKE_DOCKER_LOG", "/tmp/fake_docker.log")
+with open(log_file, "a") as f:
+    f.write(" ".join(arg.replace("\n", "\\n") for arg in sys.argv) + "\n")
+
+command = sys.argv[1] if len(sys.argv) > 1 else ""
+
+# Handle different commands based on env vars
+if command == "info":
+    if "--format" in sys.argv:
+        runtimes = json.loads(os.environ.get("FAKE_DOCKER_RUNTIMES", '{"runc": {}, "runsc": {}}'))
+        print(json.dumps(runtimes))
+        sys.exit(0)
+    print("Docker info")
+    sys.exit(0)
+
+elif command == "image":
+    if "inspect" in sys.argv:
+        digest = os.environ.get("FAKE_DOCKER_DIGEST", "python:3.12-slim@sha256:abc123")
+        print(digest)
+        sys.exit(0)
+
+elif command == "create":
+    container_id = os.environ.get("FAKE_DOCKER_CONTAINER_ID", "container_abc123")
+    exit_code = int(os.environ.get("FAKE_DOCKER_CREATE_EXIT", "0"))
+    if exit_code == 0:
+        print(container_id)
+    else:
+        print("Error creating container", file=sys.stderr)
+    sys.exit(exit_code)
+
+elif command == "start":
+    # Real protocol: nonce line, then the archive on stdin; one JSON document out.
+    data = sys.stdin.buffer.read() if "-i" in sys.argv else b""
+    nonce, _, data = data.partition(b"\n")
+    nonce = nonce.decode()
+    names = []
+    if data:
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as tar:
+            names = tar.getnames()
+    with open(log_file, "a") as f:
+        f.write("stdin-archive " + ",".join(names) + "\n")
+        f.write(f"stdin-nonce-len {len(nonce)}\n")
+    stdout = os.environ.get("FAKE_DOCKER_START_STDOUT", "")
+    stderr = os.environ.get("FAKE_DOCKER_START_STDERR", "")
+    exit_code = int(os.environ.get("FAKE_DOCKER_START_EXIT", "0"))
+    mode = os.environ.get("FAKE_DOCKER_REPORT_MODE", "normal")
+    no_report = exit_code in (125, 126, 127) or os.environ.get("FAKE_DOCKER_OOM") == "true"
+    if not no_report and mode != "none":
+        artifacts = [
+            {"path": p, "size": len(c), "b64": base64.b64encode(c.encode()).decode()}
+            for p, c in json.loads(os.environ.get("FAKE_DOCKER_ARTIFACTS", "{}")).items()
+        ]
+        doc = {
+            "v": 2,
+            "nonce": "0" * 32 if mode == "wrong_nonce" else nonce,
+            "exit_code": exit_code,
+            "signal": None,
+            "stdout_b64": base64.b64encode(stdout.encode()).decode(),
+            "stderr_b64": base64.b64encode(stderr.encode()).decode(),
+            "stdout_truncated": os.environ.get("FAKE_DOCKER_TRUNC") == "true",
+            "stderr_truncated": False,
+            "stdout_bytes": len(stdout),
+            "stderr_bytes": len(stderr),
+            "artifacts": artifacts,
+            "artifacts_dropped": json.loads(os.environ.get("FAKE_DOCKER_DROPPED", "[]")),
+            "notes": [],
+        }
+        text = json.dumps(doc)
+        if mode == "string_exit":
+            doc["exit_code"] = str(exit_code)
+            text = json.dumps(doc)
+        elif mode == "dup_key":
+            text = text[:-1] + ', "exit_code": 0}'
+        elif mode == "second_line":
+            forged = dict(doc, exit_code=0)
+            text = text + "\n" + json.dumps(forged)
+        elif mode == "junk_prefix":
+            text = "junk\n" + text
+        print(text, end="")
+        exit_code = int(os.environ.get("FAKE_DOCKER_CONTAINER_EXIT", "0"))
+    elif mode == "none" and not no_report:
+        print(os.environ.get("FAKE_DOCKER_RAW_STDOUT", ""), end="")
+    sys.exit(exit_code)
+
+elif command == "inspect":
+    oom_killed = os.environ.get("FAKE_DOCKER_OOM", "false")
+    exit_code_val = os.environ.get("FAKE_DOCKER_INSPECT_EXIT_CODE", "0")
+    runtime = os.environ.get("FAKE_DOCKER_RUNTIME", "runc")
+
+    exit_code = int(os.environ.get("FAKE_DOCKER_INSPECT_EXIT", "0"))
+    if exit_code != 0:
+        print("Error: No such object", file=sys.stderr)
+        sys.exit(exit_code)
+
+    state = {
+        "ExitCode": int(exit_code_val),
+        "OOMKilled": oom_killed == "true",
+    }
+    print(f'{json.dumps(state)}|"{runtime}"|sha256:image123')
+    sys.exit(0)
+
+elif command == "kill":
+    sys.exit(0)
+
+elif command == "rm":
+    sys.exit(0)
+
+elif command == "ps":
+    # For verifier cleanup check
+    exit_code = int(os.environ.get("FAKE_DOCKER_PS_EXIT", "0"))
+    if exit_code == 0:
+        # Return empty if container removed
+        print(os.environ.get("FAKE_DOCKER_PS_OUTPUT", ""))
+    sys.exit(exit_code)
+
+else:
+    print(f"Unknown command: {command}", file=sys.stderr)
+    sys.exit(1)

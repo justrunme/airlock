@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, feat/* ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Lint with ruff
+      run: |
+        ruff check airlock tests
+        ruff format --check airlock tests
+
+    - name: Check docs/CHECKS.md matches the test collection
+      run: python scripts/gen_checks.py --check
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Run full test suite on runc
+      run: |
+        docker info --format 'runtimes: {{json .Runtimes}}'
+        echo "Container runtime: $AIRLOCK_RUNTIME (pinned; GitHub runners have no gVisor)" | tee -a "$GITHUB_STEP_SUMMARY"
+        pytest tests/ -v --tb=short -rs
+      env:
+        # Pin the runtime so the job never falls back silently.
+        AIRLOCK_RUNTIME: runc
+        VULTR_INFERENCE_API_KEY: ${{ secrets.VULTR_INFERENCE_API_KEY }}
