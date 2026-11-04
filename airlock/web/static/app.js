@@ -15,6 +15,18 @@ function el(tag, attrs = {}, ...kids) {
 const badge = (text, cls) => el("span", { class: `badge ${cls ?? text}` }, text);
 const kv = (pairs) =>
   el("dl", { class: "kv" }, pairs.filter(([, v]) => v != null && v !== "").flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
+// Four status words, never mixed:
+// BLOCKED   the policy gate denied the action before anything ran
+// ALLOWED   the action passed the gate (no sandbox result yet, or it did not run)
+// CONTAINED allowed code ran inside the restricted sandbox (runsc, no network, limits)
+// VERIFIED  a receipt's signature and hash chain check out (used only in the verifier)
+function statusWord(step) {
+  if (!step?.verdict) return ["ERROR", "fail"];
+  if (step.verdict !== "allow") return ["BLOCKED", "deny"];
+  if (step.execution || step.sandbox_started === true) return ["CONTAINED", "contained"];
+  return ["ALLOWED", "allow"];
+}
+const statusBadge = (step) => { const [w, c] = statusWord(step); return badge(w, c); };
 const pre = (text, cls = "scroll") => el("pre", { class: cls }, text);
 
 let PUBKEY = "";
@@ -58,7 +70,7 @@ function containment(step) {
   const parts = [
     el("li", { class: "c-propose" }, el("span", { class: "c-n" }, "1"), el("strong", {}, "Proposed"),
       el("code", { class: "c-code" }, first.length > 70 ? first.slice(0, 70) + "…" : first)),
-    el("li", { class: "c-deny" }, el("span", { class: "c-n" }, "2"), el("strong", {}, step.verdict.toUpperCase()),
+    el("li", { class: "c-deny" }, el("span", { class: "c-n" }, "2"), el("strong", {}, "BLOCKED"),
       el("span", {}, step.rules_fired?.length ? step.rules_fired.join(", ") : "no rule code")),
   ];
   if (neverStarted(step)) {
@@ -77,7 +89,7 @@ function renderStep(step) {
   const card = el("div", { class: "card" });
   const strip = containment(step);
   if (strip) card.append(strip);
-  const head = el("div", {}, badge(step.verdict ?? "error", step.verdict ?? "fail"), badge(step.status ?? "?", "neutral"));
+  const head = el("div", {}, statusBadge(step), el("span", { class: "hint" }, `gate verdict: ${step.verdict ?? "none"} · status: ${step.status ?? "?"}`));
   if (step.rules_fired?.length) head.append(" ", el("strong", {}, step.rules_fired.join(", ")));
   card.append(head);
   if (step.error && !step.verdict) { card.append(el("p", { class: "err" }, step.error)); return card; }
@@ -128,14 +140,14 @@ function renderReplay(out, target) {
   target.replaceChildren();
   const blocked = out.steps.filter((s) => s.verdict !== "allow");
   target.append(el("p", {}, badge(blocked.length ? "deny" : "allow"),
-    `${out.steps.length} scripted proposals, ${blocked.length} blocked by the gate, ${out.steps.length - blocked.length} ran in the sandbox · task ${out.task_id} · ${out.elapsed_s}s`));
+    `${out.steps.length} scripted proposals: ${blocked.length} BLOCKED by the gate, ${out.steps.length - blocked.length} ALLOWED and CONTAINED in the sandbox · task ${out.task_id} · ${out.elapsed_s}s`));
   if (out.log_note) target.append(el("p", { class: "hint" }, out.log_note));
   for (const s of out.steps) {
     const card = el("div", { class: "card" },
       containment(s),
       el("div", { class: "step-title" }, el("strong", {}, s.label), " ", badge(s.intent === "legitimate" ? "legitimate" : "injected", s.intent === "legitimate" ? "neutral" : "fail")),
       el("div", { class: "hint" }, `proposal (${s.action.lang}):`), pre(s.action.code),
-      el("p", {}, badge(s.verdict), s.rules_fired.length ? el("strong", {}, s.rules_fired.join(", ")) : "no rule fired",
+      el("p", {}, statusBadge(s), s.rules_fired.length ? el("strong", {}, s.rules_fired.join(", ")) : "no rule fired",
         s.reason ? el("span", {}, " — ", el("code", {}, s.reason)) : null),
       kv([["limits applied", limitsText(s.caps, "none")],
         ["sandbox", s.sandbox_started ? `started (${s.execution?.runtime ?? "?"}), status ${s.status}` : "never started: the gate refused before any container existed"]]));
@@ -203,8 +215,8 @@ function renderTask(out, target) {
 function headlineText(o) {
   const blk = `${o.blocked} of ${o.proposed} proposed action${o.proposed === 1 ? "" : "s"} blocked by the gate`;
   switch (o.state) {
-    case "completed": return ["completed", "allow", `— ${blk}`];
-    case "all_blocked": return ["all blocked", "deny", `— all ${o.proposed} proposed action${o.proposed === 1 ? " was" : "s were"} blocked by the gate; nothing ran`];
+    case "completed": return ["completed", "neutral", `— ${blk}`];
+    case "all_blocked": return ["all BLOCKED", "deny", `— all ${o.proposed} proposed action${o.proposed === 1 ? " was" : "s were"} blocked by the gate; nothing ran`];
     case "no_actions": return ["no actions", "neutral", "— the model answered without proposing any code"];
     default: return ["failed", "fail", `— the task did not finish (${blk}, ${o.ran_ok} ran successfully)`];
   }
@@ -275,7 +287,7 @@ function showBeforeAfter(rep) {
   if (!s) return;
   const code = s.action?.code ?? s.code ?? "";
   $("#ba-code").textContent = code.split("\n").slice(0, 4).join("\n");
-  $("#ba-rule").textContent = `${String(s.verdict).toUpperCase()} ${(s.rules_fired ?? []).map((r) => r.code ?? r).join(", ")}`;
+  $("#ba-rule").textContent = `BLOCKED ${(s.rules_fired ?? []).map((r) => r.code ?? r).join(", ")}`;
   $("#ba-why").textContent = neverStarted(s) ? "The sandbox never started for this step. Signed receipt " + String(s.receipt_id).slice(0, 8) + "…" : "Blocked by the gate.";
   $("#beforeafter").hidden = false;
 }
@@ -381,7 +393,8 @@ async function runVerify() {
   const out = $("#out-verify");
   const text = $("#rtext").value;
   const res = await verifyReceipt(text, $("#pub").value.trim());
-  const card = el("div", { class: "card" }, el("p", {}, badge(res.ok ? "pass" : "fail"), res.ok ? "receipt is authentic and unmodified" : "receipt does NOT verify"));
+  const card = el("div", { class: "card" }, el("p", {}, badge(res.ok ? "VERIFIED" : "NOT VERIFIED", res.ok ? "pass" : "fail"), res.ok ? "signature and hash chain check out" : "receipt does NOT verify"),
+    el("p", { class: "hint" }, "VERIFIED proves the record is intact and signed by this server's key. It does not prove the execution was safe."));
   for (const c of res.checks) {
     card.append(el("div", { class: "check" }, badge(c.ok ? "pass" : "fail"), el("strong", {}, c.id), ` ${c.detail}`, c.path ? el("span", {}, " at ", el("code", {}, c.path)) : null));
   }

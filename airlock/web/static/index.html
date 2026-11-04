@@ -32,6 +32,11 @@
     <div class="ba-arrow" id="ba-rule">DENY</div>
     <div class="ba-after"><div class="ba-label">What actually ran</div><p class="ba-nothing">Nothing.</p><p class="hint" id="ba-why"></p></div>
   </div>
+  <p class="statuses"><span class="badge deny">BLOCKED</span> the gate denied it before anything ran
+  · <span class="badge allow">ALLOWED</span> it passed the gate
+  · <span class="badge contained">CONTAINED</span> allowed code ran in the restricted sandbox (runsc, no network, limits)
+  · <span class="badge pass">VERIFIED</span> the receipt's signature and hash chain check out.
+  VERIFIED proves the record is intact and signed, not that the execution was safe.</p>
   <p class="guarantee"><strong>What I guarantee:</strong> every action the agent proposes is checked
   by the policy before anything runs, denied code never reaches a container, and every decision
   gets a signed, hash-chained receipt. You can check it here in your browser or offline with the
@@ -39,6 +44,7 @@
   <strong>What I do not:</strong> that the policy catches every attack, or that the host itself
   is honest. The receipt proves what was recorded, not that the machine was uncompromised.
   <a href="#limits">Known limitations</a>.</p>
+  <p class="closing">An AI agent can make a mistake. Airlock makes sure that mistake doesn't automatically become an incident.</p>
   <p class="meta" id="meta">loading&hellip;</p>
 </header>
 
@@ -76,9 +82,10 @@
   <div class="out" id="out-injected"></div>
 
   <h3>B. Replay a compromised agent</h3>
-  <p class="notice"><strong>The proposals in this run are scripted.</strong> In my testing the
-  live model refused the injected line, so the live run never shows the gate stopping anything.
-  This replay plays the actions an agent that <em>obeyed</em> the line would propose. Only the
+  <p class="notice">Airlock assumes the agent is already compromised. The model has already
+  proposed the dangerous action: can an independent gate stop it?
+  <strong>The proposals in this run are scripted.</strong> This is not a successful attack on a
+  model; it plays the actions an agent that obeyed the injected line would propose. Only the
   proposals are fixed. The policy verdicts, the sandbox run, the verifier and every signed receipt
   are real and come from the same code path as the live run. Each receipt says
   <code>"context": {"mode": "replay_compromised", "planner": "scripted"}</code>.</p>

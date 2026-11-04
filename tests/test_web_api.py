@@ -584,6 +584,11 @@ def test_hero_promise_steps_and_collapsed_facts(make):
     assert '<section id="tab-injected" class="tab">' in html
     assert 'data-tab="injected" aria-selected="true"' in html
     assert "signing key lives on this VM" in html
+    assert "already compromised" in html and "not a successful attack on a" in html
+    for word in ("BLOCKED", "ALLOWED", "CONTAINED", "VERIFIED"):
+        assert word in html
+    assert "not that the execution was safe" in html
+    assert "doesn't automatically become an incident" in html
     assert "What I guarantee:" in html and "What I do not:" in html
     assert 'id="demo-run"' in html
     # limitations and corpus numbers stay on the page, collapsed, with honest wording

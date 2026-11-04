@@ -93,3 +93,6 @@ button.small { padding:3px 8px; font-size:12px; align-self:flex-start; }
 .ba-arrow { align-self:center; background:#3d1214; color:var(--bad); font-weight:700; text-align:center; }
 .ba-after { background:#12361d; } .ba-nothing { font-size:28px; font-weight:700; color:var(--ok); margin:0 0 4px; }
 @media (max-width:600px) { .beforeafter { grid-template-columns:minmax(0,1fr); } }
+.statuses { font-size:13px; line-height:1.9; color:var(--mut); }
+.closing { font-size:16px; font-weight:600; margin:14px 0 4px; }
+.contained { background:#10284a; color:var(--acc); }
