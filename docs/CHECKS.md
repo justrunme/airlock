@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1295** in 19 files.
+Total collected tests: **1296** in 19 files.
 
 | File | Tests |
 |------|------:|
@@ -26,7 +26,7 @@ Total collected tests: **1295** in 19 files.
 | `tests/test_sandbox_unit.py` | 37 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
-| `tests/test_web_api.py` | 67 |
+| `tests/test_web_api.py` | 68 |
 | `tests/test_web_copy.py` | 3 |
 | `tests/test_web_js_crosscheck.py` | 51 |
 
@@ -1354,6 +1354,7 @@ Total collected tests: **1295** in 19 files.
 | `test_hero_promise_steps_and_collapsed_facts` |  |
 | `test_blocked_steps_carry_the_fields_the_strip_shows` |  |
 | `test_blocked_card_claims_nothing_until_filled` |  |
+| `test_hero_reasons_cover_every_rule_the_replay_fires` |  |
 | `test_share_metadata_points_at_the_static_image` |  |
 
 ## `tests/test_web_copy.py`
