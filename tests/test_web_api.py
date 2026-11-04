@@ -577,7 +577,20 @@ def test_replay_explains_the_extra_warn_line(make):
 def test_hero_promise_steps_and_collapsed_facts(make):
     html = make()[0].get("/").text
     assert "Don't trust the agent. Verify what it actually did." in html
-    assert "told it to run" in html and "Demo in 3 steps" in html and 'id="beforeafter"' in html
+    assert "told it to run" in html and "Demo in 3 steps" in html and 'id="result"' in html
+    assert (
+        'AI agents make mistakes. <span class="acc">Your infrastructure shouldn\'t pay for them.'
+        in html
+    )
+    assert "Run untrusted agent actions. Contain dangerous behavior. Verify every decision." in html
+    assert 'id="attack-run"' in html and "Watch Airlock stop an attack" in html
+    assert "Why Airlock matters" in html and "Without Airlock" in html and "With Airlock" in html
+    # page order: hero result, why, pipeline, tabs, facts
+    order = [
+        html.index(x)
+        for x in ('id="result"', "Why Airlock matters", 'class="pipeline', "<nav", 'class="facts"')
+    ]
+    assert order == sorted(order)
     for tab in ("injected", "arena", "verify"):
         assert f'data-goto="{tab}"' in html and f'id="tab-{tab}"' in html
     # the replay is the default view; the live-model task is one click away
@@ -608,12 +621,27 @@ def test_blocked_steps_carry_the_fields_the_strip_shows(make):
     assert len(runner.calls) == 1
 
 
-def test_before_after_claims_nothing_until_filled(make):
+def test_blocked_card_claims_nothing_until_filled(make):
     html = make()[0].get("/").text
-    i = html.index('id="beforeafter"')
-    panel = html[i : html.index("</div>\n  </div>", i)]
-    assert 'data-state="empty"' in panel
-    assert "Run the demo to see the proposed action" in panel
-    assert "Run the demo to see what ran" in panel
-    # no result words before the replay has filled the panel from the API
-    assert "Nothing." not in panel and "BLOCKED" not in panel and "DENY" not in panel
+    i = html.index('id="result"')
+    panel = html[i : html.index('<div class="guided">', i)]
+    assert 'data-state="empty"' in panel and "Nothing has run yet." in panel
+    # result words only live in data-filled, which app.js copies in from a real replay response
+    visible = re.sub(r'data-filled="[^"]*"', "", panel)
+    for word in ("BLOCKED", "Blocked", "No container", "Nothing.", "DENY", "VERIFIED"):
+        assert word not in visible, word
+
+
+def test_share_metadata_points_at_the_static_image(make):
+    client = make()[0]
+    html = client.get("/").text
+    for tag in (
+        'property="og:title"',
+        'property="og:image"',
+        'name="twitter:card"',
+        'name="description"',
+    ):
+        assert tag in html
+    assert 'content="https://45-77-141-253.sslip.io/static/og.png"' in html
+    r = client.get("/static/og.png")
+    assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"

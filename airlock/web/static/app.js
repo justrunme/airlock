@@ -189,7 +189,7 @@ async function runReplay() {
   try {
     const out = await api("/api/task", { kind: "injected", mode: "replay_compromised" });
     renderReplay(out, target);
-    showBeforeAfter(out);
+    showEvent(out);
     return out;
   } catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); throw e; }
   finally { b.disabled = false; refreshMeta(); }
@@ -281,18 +281,44 @@ openFromHash();
 for (const a of document.querySelectorAll("[data-goto]")) {
   a.addEventListener("click", (e) => { e.preventDefault(); showTab(a.dataset.goto); document.querySelector("nav").scrollIntoView({ behavior: "smooth" }); });
 }
-// Before/after for the first blocked step of a real replay response. Filled only from API data.
-function showBeforeAfter(rep) {
-  const s = rep?.steps?.find((x) => x.verdict !== "allow");
+// The BLOCKED card: filled only from a real replay response, one stage per fact the API reports.
+function showEvent(rep) {
+  const steps = rep?.steps ?? [];
+  const s = steps.find((x) => x.verdict !== "allow");
   if (!s) return;
   const code = s.action?.code ?? s.code ?? "";
-  $("#ba-code").textContent = code.split("\n").slice(0, 4).join("\n");
-  $("#ba-rule").textContent = `BLOCKED ${(s.rules_fired ?? []).map((r) => r.code ?? r).join(", ")}`;
-  $("#ba-code").classList.remove("ba-placeholder");
-  $("#ba-ran").textContent = neverStarted(s) ? "Nothing." : "";
-  $("#ba-why").textContent = neverStarted(s) ? "The sandbox never started for this step. Signed receipt " + String(s.receipt_id).slice(0, 8) + "…" : "Blocked by the gate.";
-  $("#beforeafter").dataset.state = "filled";
+  const ev = $("#result");
+  $("#ev-cmd").textContent = code.split("\n").filter((l) => l.trim()).slice(0, 3).join("\n");
+  const rules = (s.rules_fired ?? []).map((r) => r.code ?? r);
+  $("#ev-rules").replaceChildren(badge("BLOCKED", "deny"), ...rules.map((r) => el("code", { class: "rule" }, r)));
+  const none = neverStarted(s);
+  for (const k of ev.querySelectorAll(".ev-k[data-filled]")) k.textContent = k.dataset.filled;
+  ev.querySelector(".ev-nocont").hidden = !none;
+  if (none) $("#ev-nocont").textContent = "The sandbox record for this step says no container was created. The code never ran.";
+  if (s.receipt_id) {
+    $("#ev-rid").textContent = String(s.receipt_id).slice(0, 24) + "…";
+    const vb = $("#ev-verify");
+    vb.disabled = false;
+    vb.onclick = () => loadReceipt(s.receipt_id);
+  }
+  const blocked = steps.filter((x) => x.verdict !== "allow").length;
+  const ran = steps.length - blocked;
+  $("#ev-summary").textContent = `${steps.length} scripted proposals from a compromised agent went through the real gate: ` +
+    `${blocked} BLOCKED before execution, ${ran} ALLOWED and run in the sandbox (the legitimate log analysis). Every decision has a signed receipt. Full trace in the “Compromised agent” tab below.`;
+  ev.dataset.state = "filled";
 }
+$("#attack-run").addEventListener("click", async () => {
+  const b = $("#attack-run");
+  b.disabled = true;
+  b.setAttribute("aria-busy", "true");
+  $("#ev-summary").textContent = "Sending the compromised agent's proposals to the real gate…";
+  try {
+    await runReplay();
+    $("#result").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    $("#ev-verify").focus({ preventScroll: true });
+  } catch (e) { $("#ev-summary").textContent = `The replay failed: ${e.message}`; }
+  finally { b.disabled = false; b.removeAttribute("aria-busy"); }
+});
 $("#demo-run").addEventListener("click", async () => {
   const b = $("#demo-run");
   const st = $("#demo-status");
@@ -395,21 +421,28 @@ async function runVerify() {
   const out = $("#out-verify");
   const text = $("#rtext").value;
   const res = await verifyReceipt(text, $("#pub").value.trim());
-  const card = el("div", { class: "card" }, el("p", {}, badge(res.ok ? "VERIFIED" : "NOT VERIFIED", res.ok ? "pass" : "fail"), res.ok ? "signature and hash chain check out" : "receipt does NOT verify"),
+  const failed = res.checks.filter((c) => !c.ok);
+  const card = el("div", { class: "card vcard" },
+    el("div", { class: `vbanner ${res.ok ? "ok" : "bad"}`, role: "status" },
+      el("strong", {}, res.ok ? "VERIFIED: receipt is authentic and unchanged" : "INVALID: receipt integrity check failed"),
+      res.ok ? el("span", {}, `All ${res.checks.length} checks passed in this browser.`)
+        : el("span", {}, "Failed check: ", ...failed.map((c, i) => el("span", {}, i ? ", " : "", el("code", {}, c.id), ` (${c.detail})`)))),
     el("p", { class: "hint" }, "VERIFIED proves the record is intact and signed by this server's key. It does not prove the execution was safe."));
+  const det = el("details", { class: "vdetails" }, el("summary", {}, `Technical details: ${res.checks.length} checks`));
   for (const c of res.checks) {
-    card.append(el("div", { class: "check" }, badge(c.ok ? "pass" : "fail"), el("strong", {}, c.id), ` ${c.detail}`, c.path ? el("span", {}, " at ", el("code", {}, c.path)) : null));
+    det.append(el("div", { class: "check" }, badge(c.ok ? "pass" : "fail"), el("strong", {}, c.id), ` ${c.detail}`, c.path ? el("span", {}, " at ", el("code", {}, c.path)) : null));
   }
+  card.append(det);
   if (!res.ok && state.original && text !== state.original) {
     try {
       const paths = diffPaths(parseStrict(state.original), parseStrict(text));
-      if (paths.length) card.append(el("p", {}, "fields that differ from the copy loaded from the server: ", el("code", {}, paths.join(", "))));
+      if (paths.length) card.append(el("p", { class: "diff" }, "fields that differ from the copy loaded from the server: ", el("code", {}, paths.join(", "))));
     } catch {}
   }
   try {
     const r = parseStrict(text);
-    card.append(kv([["verdict", r.decision?.verdict], ["rules", (r.decision?.rules_fired ?? []).join(", ")], ["prev_hash", r.prev_hash ?? "(first in chain)"]]));
-    if (r.prev_hash) card.append(el("button", { class: "secondary", onclick: () => loadReceipt(r.prev_hash) }, "Load previous receipt in chain"));
+    det.append(kv([["verdict", r.decision?.verdict], ["rules", (r.decision?.rules_fired ?? []).join(", ")], ["prev_hash", r.prev_hash ?? "(first in chain)"]]));
+    if (r.prev_hash) det.append(el("button", { class: "secondary", onclick: () => loadReceipt(r.prev_hash) }, "Load previous receipt in chain"));
   } catch {}
   out.replaceChildren(card);
 }
