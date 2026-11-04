@@ -28,3 +28,5 @@ pre.scroll { max-height:320px; overflow:auto; }
 table { border-collapse:collapse; width:100%; font-size:14px; } td,th { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
 th { background:var(--card); } .facts { margin-top:28px; } footer { margin:32px 0 12px; color:var(--mut); font-size:13px; }
 .check { margin:4px 0; } .spinner::after { content:" ⏳"; }
+.notice { border-left:4px solid #c80; background:#3a2a05; padding:8px 12px; }
+.step-title { font-size:15px; }

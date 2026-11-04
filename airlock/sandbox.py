@@ -450,8 +450,9 @@ class SandboxRunner:
     ) -> list[str]:
         """Build Docker create command."""
         # RLIMIT_NPROC for the job uid, applied by the bootstrap. This is what
-        # bounds the job's processes under both runtimes.
-        pids_limit = max(caps.get("pids", 64), 64)
+        # bounds the job's processes under both runtimes. It is exactly the
+        # value in the signed decision caps, so the receipt records what applied.
+        pids_limit = int(caps.get("pids", 64))
         # The cgroup pids limit counts host tasks. Under gVisor those are the
         # sandbox kernel's own threads, not job processes, and hitting it kills
         # the whole sandbox with exit 2 and no output. Give runsc headroom so

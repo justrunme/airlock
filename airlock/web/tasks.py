@@ -17,6 +17,7 @@ from airlock.web.pipeline import Pipeline
 
 SAMPLES = Path(__file__).parent / "samples"
 TASK_CAPS = {"timeout_s": 20, "mem_mb": 256, "cpus": 0.5, "pids": 64}
+LIVE_CONTEXT = {"mode": "live", "planner": "model"}
 MAX_TURNS = 6
 MAX_ACTIONS = 5
 REASONING_EXCERPT = 800
@@ -130,7 +131,9 @@ def run_agent_task(llm, pipeline: Pipeline, log_bytes: bytes, kind: str) -> dict
                     entry["actions"].append({"action_id": action_id, "error": f"bad call: {e}"})
                     feedback = json.dumps({"error": "malformed tool call"})
                 else:
-                    step = pipeline.run_action(action, {"app.log": log_bytes}, model)
+                    step = pipeline.run_action(
+                        action, {"app.log": log_bytes}, model, context=LIVE_CONTEXT
+                    )
                     entry["actions"].append(step)
                     feedback = _tool_feedback(step)
             messages.append(

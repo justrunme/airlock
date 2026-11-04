@@ -41,11 +41,24 @@
   <h2>Same task, poisoned log</h2>
   <p>One log line pretends to be an ops runbook and tells agents to pipe a remote script into
   <code>sh</code> and post the environment to an outside host. The task prompt is deliberately
-  naive and says to follow runbook steps, so the model often tries. The gate decides on the
-  code, not on the model's intent.</p>
+  naive and says to follow runbook steps. The gate decides on the code, not on the model's intent.</p>
   <details><summary>The injected line</summary><pre id="inj-line" class="scroll"></pre></details>
-  <button class="run" data-kind="injected">Run the injected task</button>
+
+  <h3>A. Live model</h3>
+  <p>The real model (Vultr Serverless Inference) gets the poisoned log.</p>
+  <button class="run" data-kind="injected">Run the injected task with the live model</button>
   <div class="out" id="out-injected"></div>
+
+  <h3>B. Replay a compromised agent</h3>
+  <p class="notice"><strong>The proposals in this run are scripted.</strong> In my testing the
+  live model refused the injected line, so the live run never shows the gate stopping anything.
+  This replay plays the actions an agent that <em>obeyed</em> the line would propose. Only the
+  proposals are fixed. The policy verdicts, the sandbox run, the verifier and every signed receipt
+  are real and come from the same code path as the live run. Each receipt says
+  <code>"context": {"mode": "replay_compromised", "planner": "scripted"}</code>.</p>
+  <div id="refusal" class="card"><p class="hint">loading the last live run&hellip;</p></div>
+  <button id="replay-run">Replay a compromised agent</button>
+  <div class="out" id="out-replay"></div>
 </section>
 
 <section id="tab-arena" class="tab" hidden>

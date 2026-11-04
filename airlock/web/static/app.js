@@ -79,12 +79,73 @@ function renderStep(step) {
   return card;
 }
 
-function receiptBox(id) {
-  return el("details", {}, el("summary", {}, "signed receipt ", el("code", {}, id.slice(0, 16) + "…")),
+function receiptBox(id, open = false) {
+  const d = el("details", {}, el("summary", {}, "signed receipt ", el("code", {}, id.slice(0, 16) + "…")),
     el("div", { class: "row" },
-      el("button", { class: "secondary", onclick: () => loadReceipt(id) }, "Verify this receipt in the browser"),
+      el("button", { class: "secondary", onclick: () => loadReceipt(id) }, "Verify in browser"),
+      el("button", { class: "secondary", onclick: () => loadReceipt(id, true) }, "Tamper one character"),
       el("a", { href: `/api/receipt/${id}`, target: "_blank", rel: "noopener" }, "raw JSON")));
+  if (open) d.setAttribute("open", "");
+  return d;
 }
+
+// ---------- replay of a compromised agent
+function limitsText(caps, net) {
+  const c = caps ?? {};
+  return `cpus ${c.cpus} · mem ${c.mem_mb} MB · pids ${c.pids} · timeout ${c.timeout_s}s · network ${net ?? "none"}`;
+}
+
+function renderReplay(out, target) {
+  target.replaceChildren();
+  const blocked = out.steps.filter((s) => s.verdict !== "allow");
+  target.append(el("p", {}, badge(blocked.length ? "deny" : "allow"),
+    `${out.steps.length} scripted proposals, ${blocked.length} blocked by the gate, ${out.steps.length - blocked.length} ran in the sandbox · task ${out.task_id} · ${out.elapsed_s}s`));
+  for (const s of out.steps) {
+    const card = el("div", { class: "card" },
+      el("div", { class: "step-title" }, el("strong", {}, s.label), " ", badge(s.intent === "legitimate" ? "legitimate" : "injected", s.intent === "legitimate" ? "neutral" : "fail")),
+      el("div", { class: "hint" }, `proposal (${s.action.lang}):`), pre(s.action.code),
+      el("p", {}, badge(s.verdict), s.rules_fired.length ? el("strong", {}, s.rules_fired.join(", ")) : "no rule fired",
+        s.reason ? el("span", {}, " — ", el("code", {}, s.reason)) : null),
+      kv([["limits applied", limitsText(s.caps, "none")],
+        ["sandbox", s.sandbox_started ? `started (${s.execution?.runtime ?? "?"}), status ${s.status}` : "never started: the gate refused before any container existed"]]));
+    const x = s.execution;
+    if (x) {
+      card.append(kv([["exit code", x.exit_code], ["killed by", x.killed_by]]));
+      if (x.stdout) card.append(el("div", { class: "hint" }, "stdout:"), pre(x.stdout));
+      for (const a of x.artifacts ?? []) card.append(el("div", { class: "hint" }, `artifact ${a.name}:`), pre(a.preview));
+    }
+    if (s.cleanup) card.append(el("div", { class: "check" }, badge(s.cleanup.container_absent && s.cleanup.network_absent ? "pass" : "fail"),
+      `cleanup: container removed=${s.cleanup.container_absent}, network removed=${s.cleanup.network_absent}`));
+    if (s.receipt_id) card.append(receiptBox(s.receipt_id, true));
+    target.append(card);
+  }
+  showRefusal(out.model_refusal);
+}
+
+function showRefusal(rec) {
+  const box = $("#refusal");
+  if (!rec) {
+    box.replaceChildren(el("p", { class: "hint" }, "No live run of the injected task is recorded on this server yet. Run A above to see what the real model does."));
+    return;
+  }
+  box.replaceChildren(
+    el("strong", {}, "What the real model did on the last live run"),
+    kv([["task", rec.task_id], ["model", `${rec.model?.provider} / ${rec.model?.id}`], ["recorded at (UTC)", rec.recorded_at],
+      ["proposed the injected action", rec.proposed_injected_action ? "yes" : "no"]]),
+    ...(rec.reasoning_excerpts ?? []).map((r, i) => el("details", i === 0 ? { open: "" } : {}, el("summary", {}, `model reasoning, turn ${i + 1} (verbatim excerpt)`), pre(r))),
+    rec.final_answer ? el("details", {}, el("summary", {}, "model final answer (verbatim)"), pre(rec.final_answer)) : null,
+    ...(rec.receipt_ids ?? []).slice(0, 1).map((id) => el("p", { class: "hint" }, "receipts from that run start at ", el("code", {}, id.slice(0, 16) + "…"))));
+}
+
+$("#replay-run").addEventListener("click", async () => {
+  const b = $("#replay-run");
+  const target = $("#out-replay");
+  b.disabled = true;
+  target.replaceChildren(el("p", { class: "spinner" }, "replaying: every proposal goes through the real gate"));
+  try { renderReplay(await api("/api/task", { kind: "injected", mode: "replay_compromised" }), target); }
+  catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); }
+  finally { b.disabled = false; }
+});
 
 function renderTask(out, target) {
   target.replaceChildren();
@@ -111,7 +172,10 @@ for (const b of document.querySelectorAll("button.run")) {
     const target = $(`#out-${b.dataset.kind}`);
     b.disabled = true;
     target.replaceChildren(el("p", { class: "spinner" }, "running: the model is thinking"));
-    try { renderTask(await api("/api/task", { kind: b.dataset.kind }), target); }
+    try {
+      renderTask(await api("/api/task", { kind: b.dataset.kind }), target);
+      if (b.dataset.kind === "injected") showRefusal((await api("/api/last_injected_run")).record);
+    }
     catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); }
     finally { b.disabled = false; }
   });
@@ -166,7 +230,7 @@ $("#arena-run").addEventListener("click", async () => {
 });
 
 // ---------- verify
-async function loadReceipt(id) {
+async function loadReceipt(id, tamper = false) {
   showTab("verify");
   $("#rid").value = id;
   const out = $("#out-verify");
@@ -175,7 +239,8 @@ async function loadReceipt(id) {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     state.original = await r.text();
     $("#rtext").value = state.original;
-    await runVerify();
+    if (tamper) tamperOne();
+    else await runVerify();
   } catch (e) { out.replaceChildren(el("p", { class: "err" }, `could not load: ${e.message}`)); }
 }
 
@@ -204,7 +269,8 @@ async function runVerify() {
 $("#fetch-r").addEventListener("click", () => loadReceipt($("#rid").value.trim()));
 $("#verify-btn").addEventListener("click", runVerify);
 $("#reset-btn").addEventListener("click", () => { if (state.original) $("#rtext").value = state.original; runVerify(); });
-$("#tamper-btn").addEventListener("click", () => {
+$("#tamper-btn").addEventListener("click", () => tamperOne());
+function tamperOne() {
   const t = $("#rtext").value;
   // flip one character inside a string value of a signed field (not hash/sig)
   const m = [...t.matchAll(/"(reason|task_id|action_id|verdict|stdout_sha256|image_digest|container_name)":\s*"([^"\\]+)"/g)];
@@ -215,7 +281,7 @@ $("#tamper-btn").addEventListener("click", () => {
   const c = t[pos] === "x" ? "y" : "x";
   $("#rtext").value = t.slice(0, pos) + c + t.slice(pos + 1);
   runVerify();
-});
+}
 
 // ---------- boot
 (async () => {
@@ -238,5 +304,6 @@ $("#tamper-btn").addEventListener("click", () => {
       el("tr", {}, el("th", {}, "benign cases"), el("td", {}, m.benign), el("th", {}, "false DENY"), el("td", {}, `${m.false_deny} (${(m.false_deny_rate * 100).toFixed(1)}%)`)),
       el("tr", {}, el("td", { colspan: 4, class: "hint" }, `${m.scope}. policy ${m.policy_sha256.slice(0, 12)}…, corpus ${m.corpus_sha256.slice(0, 12)}…`))));
   } catch {}
+  try { showRefusal((await api("/api/last_injected_run")).record); } catch {}
   refreshStats();
 })();

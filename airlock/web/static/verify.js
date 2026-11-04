@@ -127,14 +127,21 @@ const RECEIPT_FIELDS = {
   cleanup: nullable(T.obj), model: nullable(T.obj), prev_hash: nullable(T.str),
   hash: T.str, sig_ed25519: T.str,
 };
+// optional signed fields: may be absent; if present they must have this shape
+const OPTIONAL_FIELDS = {
+  context: (x) => T.obj(x) && Object.values(x).every(T.str),
+};
 const DECISION_FIELDS = {
   schema_v: T.int, action_id: T.str, verdict: (x) => ["allow", "deny", "require_approval"].includes(x),
   rules_fired: T.arr, blast_radius: T.obj, caps: T.obj, policy_sha256: T.str, reason: nullable(T.str),
 };
 
-function checkFields(obj, spec, prefix) {
+function checkFields(obj, spec, prefix, optional = {}) {
+  for (const [k, ok] of Object.entries(optional)) {
+    if (k in obj && !ok(obj[k])) throw new ReceiptError("schema", `wrong type or value`, prefix + k);
+  }
   for (const k of Object.keys(obj)) {
-    if (!(k in spec)) throw new ReceiptError("schema", `unexpected field`, prefix + k);
+    if (!(k in spec) && !(k in optional)) throw new ReceiptError("schema", `unexpected field`, prefix + k);
   }
   for (const [k, ok] of Object.entries(spec)) {
     if (!(k in obj)) throw new ReceiptError("schema", `missing field`, prefix + k);
@@ -144,7 +151,7 @@ function checkFields(obj, spec, prefix) {
 
 export function checkSchema(r) {
   if (!T.obj(r)) throw new ReceiptError("schema", "receipt must be a JSON object");
-  checkFields(r, RECEIPT_FIELDS, "");
+  checkFields(r, RECEIPT_FIELDS, "", OPTIONAL_FIELDS);
   checkFields(r.decision, DECISION_FIELDS, "decision.");
   if (!/^[0-9a-f]{64}$/.test(r.hash)) throw new ReceiptError("schema", "must be 64 lowercase hex", "hash");
   if (!/^[0-9a-f]{128}$/.test(r.sig_ed25519)) {

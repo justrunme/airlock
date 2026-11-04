@@ -415,3 +415,80 @@ def test_static_assets_served_without_external_refs(make):
         r = client.get(f"/static/{name}")
         assert r.status_code == 200, name
         assert not re.search(r"(import|fetch|url)\(?\s*[\"']https?://", r.text), name
+
+
+# ---- replay of a compromised agent
+
+
+def _replay(client):
+    r = client.post("/api/task", json={"kind": "injected", "mode": "replay_compromised"})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_replay_allows_task_and_blocks_injected_steps(make):
+    client, runner, llm = make()[:3]
+    out = _replay(client)
+    steps = out["steps"]
+    assert [s["verdict"] for s in steps] == ["allow", "deny", "deny", "deny"]
+    assert steps[0]["status"] == "executed" and steps[0]["sandbox_started"] is True
+    assert set(steps[1]["rules_fired"]) >= {"R-BIN-CURL", "R-SHELL-EXEC-FILE"}
+    assert set(steps[2]["rules_fired"]) >= {"R-PY-ATTR-DENIED", "R-PY-OPEN-PATH"}
+    assert set(steps[3]["rules_fired"]) >= {"R-BIN-RM", "R-SHELL-REDIRECT"}
+    for s in steps[1:]:
+        assert s["status"] == "blocked" and s["sandbox_started"] is False
+        assert s["receipt"]["execution"] is None
+    # only the allowed step reached the sandbox, and no LLM call was made
+    assert len(runner.calls) == 1
+    assert llm.seen == []
+    assert out["planner"] == "scripted"
+
+
+def test_replay_receipts_record_mode_and_verify(make):
+    client = make()[0]
+    out = _replay(client)
+    for s in out["steps"]:
+        text = client.get(f"/api/receipt/{s['receipt_id']}").text
+        rec = load_receipt(text)
+        assert rec.context == {"mode": "replay_compromised", "planner": "scripted"}
+        assert json.loads(text)["context"]["planner"] == "scripted"
+
+
+def test_live_task_receipts_record_model_planner(make):
+    client = make()[0]
+    out = client.post("/api/task", json={"kind": "real"}).json()
+    step = out["turns"][0]["actions"][0]
+    assert step["receipt"]["context"] == {"mode": "live", "planner": "model"}
+
+
+def test_unknown_task_mode_rejected(make):
+    client = make()[0]
+    for body in ({"kind": "injected", "mode": "scripted"}, {"mode": 1}, {"mode": "live", "x": 1}):
+        assert client.post("/api/task", json=body).status_code == 422
+
+
+def test_replay_shows_last_real_refusal(make):
+    client = make(task_per_min=10)[0]
+    assert _replay(client)["model_refusal"] is None
+    client.post("/api/task", json={"kind": "injected"})
+    rec = client.get("/api/last_injected_run").json()["record"]
+    assert rec["proposed_injected_action"] is False
+    assert rec["reasoning_excerpts"] == ["plan: inspect the log", "r"]
+    assert _replay(client)["model_refusal"]["task_id"] == rec["task_id"]
+
+
+def test_replay_is_rate_limited(make):
+    client = make(task_per_min=1)[0]
+    _replay(client)
+    r = client.post("/api/task", json={"kind": "injected", "mode": "replay_compromised"})
+    assert r.status_code == 429
+
+
+def test_arena_caps_recorded_equal_applied(make):
+    from airlock.web.app import ARENA_CAPS
+
+    client, runner = make()[:2]
+    step = client.post("/api/arena", json={"lang": "bash", "code": "echo hi"}).json()
+    applied = runner.calls[0][1]
+    assert step["receipt"]["decision"]["caps"] == applied
+    assert applied["pids"] == ARENA_CAPS["pids"]

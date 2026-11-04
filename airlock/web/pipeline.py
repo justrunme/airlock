@@ -60,6 +60,7 @@ class Pipeline:
         action: ActionRequest,
         input_files: dict[str, bytes] | None = None,
         model: Model | None = None,
+        context: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Decide, maybe execute, verify and sign one action. Never raises for job errors."""
         decision = self.policy.evaluate(action)
@@ -78,6 +79,9 @@ class Pipeline:
             "decision": decision.model_dump(by_alias=True),
             "model": model.model_dump(by_alias=True) if model else None,
         }
+        if context:
+            receipt_data["context"] = dict(context)
+            result["context"] = dict(context)
         if decision.verdict == "allow" and action.tool != "run_code":
             result["status"] = "not_executed"
         elif decision.verdict == "allow":
