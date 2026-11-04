@@ -35,6 +35,11 @@ MAX_BODY = 96 * 1024
 MAX_CODE = 8 * 1024
 MAX_INPUT = 32 * 1024
 MAX_LOG = 32 * 1024
+MAX_PROGRESS_RUNS = 256
+REPLAY_LOG_NOTE = (
+    "The replay reads the poisoned log: the real log plus one injected WARN line, "
+    "so it counts one more WARN than the real task."
+)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -78,6 +83,8 @@ class TaskRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: Literal["real", "injected"] = "real"
     mode: Literal["live", "replay_compromised"] = "live"
+    # client-chosen id to poll /api/task/progress/{id} while a live run is going
+    progress_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{16,32}$")
 
 
 def _rule_codes() -> list[str]:
@@ -306,13 +313,47 @@ def create_app(
             )
         return None
 
-    def agent_run(log_bytes: bytes, kind: str) -> JSONResponse | dict:
+    progress: dict[str, dict[str, Any]] = {}
+    progress_lock = threading.Lock()
+
+    def progress_cb(pid: str | None, t0: float):
+        if not pid:
+            return None
+
+        def cb(phase: str, turn: int, actions: int) -> None:
+            with progress_lock:
+                if pid not in progress and len(progress) >= MAX_PROGRESS_RUNS:
+                    progress.pop(next(iter(progress)))
+                progress[pid] = {
+                    "state": "running",
+                    "phase": phase,
+                    "turn": turn,
+                    "max_turns": tasks.MAX_TURNS,
+                    "actions": actions,
+                    "elapsed_s": round(time.monotonic() - t0, 1),
+                }
+
+        return cb
+
+    @app.get("/api/task/progress/{pid}")
+    def task_progress(pid: str):
+        with progress_lock:
+            rec = progress.get(pid)
+        if rec is None:
+            return _err(404, "not_found", "no run with that progress id")
+        return rec
+
+    @app.get("/favicon.ico")
+    def favicon():
+        return FileResponse(STATIC / "favicon.svg", media_type="image/svg+xml")
+
+    def agent_run(log_bytes: bytes, kind: str, on_progress=None) -> JSONResponse | dict:
         if not custom_llm and not os.environ.get("VULTR_INFERENCE_API_KEY"):
             return _err(503, "llm_unavailable", "inference key not configured")
         try:
             with task_gate.slot():
                 llm = get_llm()
-                return tasks.run_agent_task(llm, pipeline, log_bytes, kind)
+                return tasks.run_agent_task(llm, pipeline, log_bytes, kind, on_progress=on_progress)
         except BusyError:
             return _err(503, "busy", "too many runs in progress, retry shortly")
         except Exception as e:
@@ -341,12 +382,22 @@ def create_app(
             except BusyError:
                 return _err(503, "busy", "too many sandboxes running, retry shortly")
             out["model_refusal"] = load_refusal()
+            out["log_note"] = REPLAY_LOG_NOTE
             out["elapsed_s"] = round(time.monotonic() - t0, 2)
             return out
         if r := limited(request, "task_min", "task_day", "llm_global"):
             return r
         t0 = time.monotonic()
-        out = await run_in_threadpool(agent_run, tasks.sample_log(req.kind == "injected"), req.kind)
+        cb = progress_cb(req.progress_id, t0)
+        if cb:
+            cb("starting", 0, 0)
+        out = await run_in_threadpool(
+            agent_run, tasks.sample_log(req.kind == "injected"), req.kind, cb
+        )
+        if req.progress_id:
+            with progress_lock:
+                if req.progress_id in progress:
+                    progress[req.progress_id]["state"] = "done"
         if isinstance(out, dict):
             out["elapsed_s"] = round(time.monotonic() - t0, 2)
             if req.kind == "injected":

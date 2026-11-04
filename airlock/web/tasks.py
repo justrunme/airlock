@@ -69,8 +69,49 @@ def _tool_feedback(step: dict[str, Any]) -> str:
     return json.dumps(fb)
 
 
-def run_agent_task(llm, pipeline: Pipeline, log_bytes: bytes, kind: str) -> dict[str, Any]:
-    """Run the agent loop over ``log_bytes``. ``llm`` is an AgentLoop-like client."""
+def task_outcome(turns: list[dict[str, Any]], final_answer: str | None) -> dict[str, Any]:
+    """Summarise a run for the headline: what was proposed, blocked and finished.
+
+    ``completed``: the model gave a final answer and at least one allowed action
+    exited 0. ``all_blocked``: actions were proposed and the gate refused every
+    one. ``no_actions``: the model answered without proposing code. Anything else
+    (model error, sandbox failure, no final answer) is ``failed``.
+    """
+    steps = [a for t in turns for a in t.get("actions", []) if "verdict" in a]
+    blocked = sum(1 for a in steps if a["verdict"] != "allow")
+    ran_ok = sum(
+        1
+        for a in steps
+        if a["verdict"] == "allow" and (a.get("execution") or {}).get("exit_code") == 0
+    )
+    errored = any(t.get("error") for t in turns) or any(
+        "verdict" not in a for t in turns for a in t.get("actions", [])
+    )
+    if steps and blocked == len(steps):
+        state = "all_blocked"
+    elif final_answer and ran_ok and not errored:
+        state = "completed"
+    elif final_answer and not steps and not errored:
+        state = "no_actions"
+    else:
+        state = "failed"
+    return {"state": state, "proposed": len(steps), "blocked": blocked, "ran_ok": ran_ok}
+
+
+def run_agent_task(
+    llm, pipeline: Pipeline, log_bytes: bytes, kind: str, on_progress=None
+) -> dict[str, Any]:
+    """Run the agent loop over ``log_bytes``. ``llm`` is an AgentLoop-like client.
+
+    ``on_progress(phase, turn, actions)`` is called with the real loop state:
+    ``phase`` is "model" while waiting for the model and "sandbox" while an
+    action goes through the gate and sandbox.
+    """
+
+    def progress(phase: str, turn: int) -> None:
+        if on_progress:
+            on_progress(phase, turn, n_actions)
+
     task_id = f"{kind}-{uuid.uuid4().hex[:12]}"
     model = Model(provider="vultr-serverless-inference", id=llm.model)
     messages: list[dict[str, Any]] = [
@@ -81,6 +122,7 @@ def run_agent_task(llm, pipeline: Pipeline, log_bytes: bytes, kind: str) -> dict
     final_answer = None
     n_actions = 0
     for turn in range(1, MAX_TURNS + 1):
+        progress("model", turn)
         response = llm.chat(messages, tools=True, max_tokens=MAX_TOKENS)
         if not response or not response.get("choices"):
             turns.append({"turn": turn, "error": "no response from the model"})
@@ -131,6 +173,7 @@ def run_agent_task(llm, pipeline: Pipeline, log_bytes: bytes, kind: str) -> dict
                     entry["actions"].append({"action_id": action_id, "error": f"bad call: {e}"})
                     feedback = json.dumps({"error": "malformed tool call"})
                 else:
+                    progress("sandbox", turn)
                     step = pipeline.run_action(
                         action, {"app.log": log_bytes}, model, context=LIVE_CONTEXT
                     )
@@ -148,4 +191,5 @@ def run_agent_task(llm, pipeline: Pipeline, log_bytes: bytes, kind: str) -> dict
         "task_prompt": TASK_PROMPT,
         "turns": turns,
         "final_answer": final_answer,
+        "outcome": task_outcome(turns, final_answer),
     }
