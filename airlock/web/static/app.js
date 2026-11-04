@@ -45,9 +45,38 @@ for (const b of document.querySelectorAll("nav button")) {
 }
 function showTab(name) { document.querySelector(`nav button[data-tab=${name}]`).click(); }
 
+// ---------- containment strip for a blocked action (built only from the API response)
+function neverStarted(step) {
+  // replay steps say it directly; for others the pipeline only creates a container on allow
+  if (step.sandbox_started === false) return true;
+  if (step.sandbox_started === true) return false;
+  return step.verdict !== "allow" && step.status === "blocked" && step.execution == null && step.cleanup == null;
+}
+function containment(step) {
+  if (!step.verdict || step.verdict === "allow") return null;
+  const first = (step.action?.code ?? "").split("\n").find((l) => l.trim()) ?? "";
+  const parts = [
+    el("li", { class: "c-propose" }, el("span", { class: "c-n" }, "1"), el("strong", {}, "Proposed"),
+      el("code", { class: "c-code" }, first.length > 70 ? first.slice(0, 70) + "…" : first)),
+    el("li", { class: "c-deny" }, el("span", { class: "c-n" }, "2"), el("strong", {}, step.verdict.toUpperCase()),
+      el("span", {}, step.rules_fired?.length ? step.rules_fired.join(", ") : "no rule code")),
+  ];
+  if (neverStarted(step)) {
+    parts.push(el("li", { class: "c-nosandbox" }, el("span", { class: "c-n" }, "3"), el("strong", {}, "Sandbox never started"),
+      el("span", {}, "no container was created")));
+  }
+  if (step.receipt_id) {
+    parts.push(el("li", { class: "c-receipt" }, el("span", { class: "c-n" }, String(parts.length + 1)), el("strong", {}, "Signed receipt"),
+      el("button", { class: "secondary small", onclick: () => loadReceipt(step.receipt_id) }, `verify ${step.receipt_id.slice(0, 8)}…`)));
+  }
+  return el("ol", { class: "contain", "aria-label": "containment of a blocked action" }, parts);
+}
+
 // ---------- rendering a pipeline step
 function renderStep(step) {
   const card = el("div", { class: "card" });
+  const strip = containment(step);
+  if (strip) card.append(strip);
   const head = el("div", {}, badge(step.verdict ?? "error", step.verdict ?? "fail"), badge(step.status ?? "?", "neutral"));
   if (step.rules_fired?.length) head.append(" ", el("strong", {}, step.rules_fired.join(", ")));
   card.append(head);
@@ -103,6 +132,7 @@ function renderReplay(out, target) {
   if (out.log_note) target.append(el("p", { class: "hint" }, out.log_note));
   for (const s of out.steps) {
     const card = el("div", { class: "card" },
+      containment(s),
       el("div", { class: "step-title" }, el("strong", {}, s.label), " ", badge(s.intent === "legitimate" ? "legitimate" : "injected", s.intent === "legitimate" ? "neutral" : "fail")),
       el("div", { class: "hint" }, `proposal (${s.action.lang}):`), pre(s.action.code),
       el("p", {}, badge(s.verdict), s.rules_fired.length ? el("strong", {}, s.rules_fired.join(", ")) : "no rule fired",
@@ -139,15 +169,19 @@ function showRefusal(rec) {
     ...(rec.receipt_ids ?? []).slice(0, 1).map((id) => el("p", { class: "hint" }, "receipts from that run start at ", el("code", {}, id.slice(0, 16) + "…"))));
 }
 
-$("#replay-run").addEventListener("click", async () => {
+async function runReplay() {
   const b = $("#replay-run");
   const target = $("#out-replay");
   b.disabled = true;
   target.replaceChildren(el("p", { class: "spinner" }, "replaying: every proposal goes through the real gate"));
-  try { renderReplay(await api("/api/task", { kind: "injected", mode: "replay_compromised" }), target); }
-  catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); }
+  try {
+    const out = await api("/api/task", { kind: "injected", mode: "replay_compromised" });
+    renderReplay(out, target);
+    return out;
+  } catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); throw e; }
   finally { b.disabled = false; refreshMeta(); }
-});
+}
+$("#replay-run").addEventListener("click", () => runReplay().catch(() => {}));
 
 function renderTask(out, target) {
   target.replaceChildren();
@@ -208,21 +242,51 @@ function startProgress(target) {
 }
 
 // ---------- tasks
-for (const b of document.querySelectorAll("button.run")) {
-  b.addEventListener("click", async () => {
-    const target = $(`#out-${b.dataset.kind}`);
-    b.disabled = true;
-    const prog = startProgress(target);
-    try {
-      const out = await api("/api/task", { kind: b.dataset.kind, progress_id: prog.pid });
-      prog.stop();
-      renderTask(out, target);
-      if (b.dataset.kind === "injected") showRefusal((await api("/api/last_injected_run")).record);
-    }
-    catch (e) { prog.stop(); target.replaceChildren(el("p", { class: "err" }, e.message)); }
-    finally { b.disabled = false; refreshMeta(); }
-  });
+async function runTask(b) {
+  const target = $(`#out-${b.dataset.kind}`);
+  b.disabled = true;
+  const prog = startProgress(target);
+  try {
+    const out = await api("/api/task", { kind: b.dataset.kind, progress_id: prog.pid });
+    prog.stop();
+    renderTask(out, target);
+    if (b.dataset.kind === "injected") showRefusal((await api("/api/last_injected_run")).record);
+    return out;
+  }
+  catch (e) { prog.stop(); target.replaceChildren(el("p", { class: "err" }, e.message)); throw e; }
+  finally { b.disabled = false; refreshMeta(); }
 }
+for (const b of document.querySelectorAll("button.run")) b.addEventListener("click", () => runTask(b).catch(() => {}));
+
+// ---------- hero: step strip and the guided demo
+function openFromHash() {
+  const d = location.hash && document.querySelector(`details${location.hash}`);
+  if (d) d.open = true;
+}
+window.addEventListener("hashchange", openFromHash);
+openFromHash();
+for (const a of document.querySelectorAll("[data-goto]")) {
+  a.addEventListener("click", (e) => { e.preventDefault(); showTab(a.dataset.goto); document.querySelector("nav").scrollIntoView({ behavior: "smooth" }); });
+}
+$("#demo-run").addEventListener("click", async () => {
+  const b = $("#demo-run");
+  const st = $("#demo-status");
+  b.disabled = true;
+  const say = (t) => { st.textContent = t; };
+  try {
+    say("Step 1 of 3: running the real task with the live model (20–90 s). Watch the Real task tab.");
+    showTab("real");
+    await runTask(document.querySelector("button.run[data-kind=real]"));
+    say("Step 2 of 3: replaying a compromised agent through the real gate. Watch the Injected task tab.");
+    showTab("injected");
+    const rep = await runReplay();
+    const blocked = rep.steps.find((x) => x.verdict !== "allow" && x.receipt_id);
+    say("Step 3 of 3: loading a blocked action's signed receipt into the verifier in this browser.");
+    if (blocked) await loadReceipt(blocked.receipt_id);
+    say("Demo done. Every step above used live API data. Try “Tamper one character” in the verifier, or attack it in “Try to break it”.");
+  } catch (e) { say(`Demo stopped: ${e.message}. The tab shows what happened.`); }
+  finally { b.disabled = false; }
+});
 
 // ---------- arena
 const EXAMPLES = [
