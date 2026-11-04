@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **679** in 16 files.
+Total collected tests: **691** in 16 files.
 
 | File | Tests |
 |------|------:|
@@ -21,11 +21,11 @@ Total collected tests: **679** in 16 files.
 | `tests/test_receipt.py` | 7 |
 | `tests/test_receipt_strict.py` | 32 |
 | `tests/test_sandbox.py` | 23 |
-| `tests/test_sandbox_unit.py` | 33 |
+| `tests/test_sandbox_unit.py` | 35 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
-| `tests/test_web_api.py` | 47 |
-| `tests/test_web_js_crosscheck.py` | 9 |
+| `tests/test_web_api.py` | 55 |
+| `tests/test_web_js_crosscheck.py` | 11 |
 
 ## `tests/test_agent.py`
 
@@ -638,6 +638,8 @@ Total collected tests: **679** in 16 files.
 
 | Test | Description |
 |------|-------------|
+| `TestSandboxUnit::test_job_process_limit_is_exactly_the_decision_cap[runc]` | The arena asks for pids=32; the job must get 32, not a silent floor of 64. |
+| `TestSandboxUnit::test_job_process_limit_is_exactly_the_decision_cap[runsc]` | The arena asks for pids=32; the job must get 32, not a silent floor of 64. |
 | `TestSandboxUnit::test_exact_sequence_create_start_inspect_rm` | Test exact docker command sequence. |
 | `TestSandboxUnit::test_docker_create_flags` | Test all flags passed to docker create. |
 | `TestSandboxUnit::test_create_failure_error_verdict` | Test create failure raises error. |
@@ -771,6 +773,14 @@ Total collected tests: **679** in 16 files.
 | `test_sandbox_never_gets_inference_key` | The docker create command carries no host environment besides LANG/LC_ALL. |
 | `test_samples_show_prompt_and_injected_line` |  |
 | `test_static_assets_served_without_external_refs` |  |
+| `test_replay_allows_task_and_blocks_injected_steps` |  |
+| `test_replay_receipts_record_mode_and_verify` |  |
+| `test_live_task_receipts_record_model_planner` |  |
+| `test_unknown_task_mode_rejected` |  |
+| `test_replay_shows_last_real_refusal` |  |
+| `test_replay_is_rate_limited` |  |
+| `test_arena_caps_recorded_equal_applied` |  |
+| `test_quoting_the_injected_line_is_not_counted_as_obeying` |  |
 
 ## `tests/test_web_js_crosscheck.py`
 
@@ -785,3 +795,5 @@ Total collected tests: **679** in 16 files.
 | `test_jcs_vectors_match_python[unicode passthrough]` |  |
 | `test_receipt_fixture_is_current` |  |
 | `test_fresh_python_receipt_verifies_in_node_and_tamper_fails` |  |
+| `test_replay_receipt_with_context_verifies_in_node_and_tamper_fails` |  |
+| `test_receipt_without_context_keeps_old_encoding` |  |
