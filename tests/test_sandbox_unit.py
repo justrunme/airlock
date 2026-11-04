@@ -52,6 +52,19 @@ class TestSandboxUnit:
         assert ARENA_CAPS["pids"] == 32
         assert cmd[-1] == "32"  # RLIMIT_NPROC handed to the bootstrap
 
+    @pytest.mark.parametrize("runtime", ["runc", "runsc"])
+    def test_process_limits_match_docker_create(self, runtime):
+        """Review 5 M1: the published job_nproc / cgroup headroom are what docker gets."""
+        from airlock.web.app import ARENA_CAPS
+
+        runner = SandboxRunner(runtime=runtime)
+        action = ActionRequest(id="p", task_id="t", tool="run_code", lang="bash", code="true")
+        cmd = runner._build_docker_create_command(action, dict(ARENA_CAPS), "airlock-x")
+        limits = runner.process_limits(ARENA_CAPS)
+        assert limits["job_nproc"] == 32 and cmd[-1] == "32"
+        assert cmd[cmd.index("--pids-limit") + 1] == str(limits["cgroup_pids_headroom"])
+        assert limits["cgroup_pids_headroom"] == (32 if runtime == "runc" else 512)
+
     def get_docker_commands(self):
         """Get logged docker commands."""
         if not self.docker_log.exists():

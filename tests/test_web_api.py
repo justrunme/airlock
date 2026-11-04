@@ -25,7 +25,11 @@ class FakeRunner:
         self.calls = []
 
     def _build_docker_create_command(self, action, caps, name):
-        return ["docker", "create", "--network", "none", "--runtime", "runc", "img", "python3"]
+        pids = str(caps["pids"])
+        return ["docker", "create", "--network", "none", "--pids-limit", pids, "img", "python3"]
+
+    def process_limits(self, caps):
+        return {"job_nproc": caps["pids"], "cgroup_pids_headroom": caps["pids"]}
 
     def run(self, action, caps, work_dir, input_files=None):
         self.calls.append((action, caps, dict(input_files or {})))
@@ -145,6 +149,21 @@ class TestBasics:
         assert "--network" in p["docker_create"]
         assert "R-SHELL-PATTERN" in p["rule_codes"] or len(p["rule_codes"]) > 20
         assert p["size_limits"]["code_bytes"] == 8192
+
+    def test_policy_separates_job_nproc_from_cgroup_headroom(self, make):
+        # Review 5 M1: max_pids / arena pids / --pids-limit were easy to confuse.
+        c, *_ = make()
+        p = c.get("/api/policy").json()
+        arena = p["process_limits"]["arena"]
+        assert arena["job_nproc"] == p["arena_caps"]["pids"]
+        assert p["process_limits"]["task"]["job_nproc"] == p["task_caps"]["pids"]
+        flags = p["docker_create"]
+        assert flags[flags.index("--pids-limit") + 1] == str(arena["cgroup_pids_headroom"])
+        if p["runtime"] == "runc":
+            assert arena["cgroup_pids_headroom"] == arena["job_nproc"]
+        else:
+            assert arena["cgroup_pids_headroom"] >= arena["job_nproc"]
+        assert "OOM" in p["process_limits"]["note"]
 
     def test_ui_served_without_external_resources(self, make):
         c, *_ = make()

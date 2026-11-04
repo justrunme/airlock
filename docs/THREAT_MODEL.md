@@ -50,9 +50,10 @@ This document describes the assets, adversaries, threats, and mitigations for Ai
 
 **Mitigations**:
 - Wall-clock timeout watchdog kills the container at the cap
-- The bootstrap sets `RLIMIT_NPROC` for the job uid (minimum 64); a fork past it fails with EAGAIN, which the job sees and the bootstrap records as an `nproc_limit_reached` note
-- `--pids-limit` equals that cap under runc. Under runsc the cgroup counts the sandbox kernel's host threads, not job processes, and hitting it kills the whole sandbox (exit 2, no output); runsc therefore gets `max(4 x cap, 512)` and the job is bounded by `RLIMIT_NPROC`
-- Under runsc, many forked Python processes are charged against `--memory` sooner than under runc, so a fork-heavy job can end as `killed_by=oom` there instead of EAGAIN; both outcomes are recorded
+- The bootstrap sets `RLIMIT_NPROC` for the job uid to exactly the `pids` value in the signed decision caps (32 for the Arena, 64 for tasks; no floor). I call this `job_nproc`. A fork past it fails with EAGAIN, which the job sees and the bootstrap records as an `nproc_limit_reached` note
+- `--pids-limit` (`cgroup_pids_headroom` in `/api/policy`) equals `job_nproc` under runc. Under runsc the cgroup counts the sandbox kernel's host threads, not job processes, and hitting it kills the whole sandbox (exit 2, no output); runsc therefore gets `max(4 x job_nproc, 512)`, so the Arena's `--pids-limit 512` under runsc is headroom, not the job's cap. The guest view of `pids.max` under runsc reads `max`
+- Under runsc the practical fork ceiling is memory, not `RLIMIT_NPROC`: each forked Python process is charged against `--memory`, and the fifth review's fork bombs ended as an OOM kill (137, `killed_by=oom`, report discarded) before EAGAIN. Under runc the same jobs stop at about `job_nproc - 4` children with EAGAIN. Both outcomes are recorded and neither leaves the container
+- `policy.max_pids` in `/api/policy` is only the ceiling a requested `pids` cap is clamped to; it is not what a given run gets
 - `--memory` cap triggers OOM killer
 - `--cpus` throttles CPU usage
 - stdout and stderr capped at 1 MiB each (truncation is flagged); `/work/out` artifacts capped at 64 files / 8 MiB total
