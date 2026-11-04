@@ -1,0 +1,42 @@
+[Unit]
+Description=Airlock web demo (policy-gated sandbox API)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=airlock
+Group=airlock
+# docker group membership is what lets the service start sandboxes.
+# It is root-equivalent; see the limitations table in the README.
+SupplementaryGroups=docker
+# root:root 0600. systemd reads it before dropping privileges, so the
+# service user cannot read the file itself. Only VULTR_INFERENCE_API_KEY lives here.
+EnvironmentFile=/etc/airlock/airlock.env
+Environment=AIRLOCK_DATA_DIR=/var/lib/airlock
+Environment=AIRLOCK_RUNTIME=runsc
+Environment=AIRLOCK_TRUST_PROXY=1
+Environment=AIRLOCK_HOST=127.0.0.1
+Environment=AIRLOCK_PORT=8080
+StateDirectory=airlock
+StateDirectoryMode=0700
+ExecStart=/opt/airlock/venv/bin/airlock-web
+Restart=on-failure
+RestartSec=3
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/airlock
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+UMask=0077
+MemoryMax=1G
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

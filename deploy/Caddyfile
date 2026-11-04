@@ -1,0 +1,18 @@
+# Replace HOST with your hostname. sslip.io names resolve to the embedded IP,
+# so Caddy can get a Let's Encrypt certificate without owning a domain.
+{HOST} {
+	encode gzip
+	request_body {
+		max_size 128KB
+	}
+	reverse_proxy 127.0.0.1:8080 {
+		transport http {
+			read_timeout 180s
+		}
+	}
+}
+
+# Plain HTTP on the bare IP redirects to the hostname.
+http://45.77.141.253 {
+	redir https://{HOST}{uri} 308
+}

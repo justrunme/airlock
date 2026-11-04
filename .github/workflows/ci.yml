@@ -24,11 +24,30 @@ jobs:
 
     - name: Lint with ruff
       run: |
-        ruff check airlock tests
-        ruff format --check airlock tests
+        ruff check airlock tests scripts
+        ruff format --check airlock tests scripts
 
     - name: Check docs/CHECKS.md matches the test collection
       run: python scripts/gen_checks.py --check
+
+    - name: Check the published corpus metrics are current
+      run: python scripts/corpus_metrics.py --check
+
+    - name: Check JS syntax
+      run: |
+        for f in airlock/web/static/*.js tests/js/*.mjs; do node --check "$f"; done
+
+  node:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Run receipt verifier tests
+      run: node --test tests/js/*.test.mjs
 
   test:
     runs-on: ubuntu-latest

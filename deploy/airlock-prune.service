@@ -1,0 +1,10 @@
+[Unit]
+Description=Prune stale Airlock sandboxes and work dirs
+
+[Service]
+Type=oneshot
+User=airlock
+Group=airlock
+SupplementaryGroups=docker
+Environment=AIRLOCK_DATA_DIR=/var/lib/airlock
+ExecStart=/opt/airlock/src/deploy/prune.sh

@@ -1,0 +1,120 @@
+2026-11-04T09:00:06Z INFO api path=/api/search status=200 latency_ms=171
+2026-11-04T09:00:07Z ERROR db-pool path=/healthz status=500 msg="timeout acquiring connection from pool (max=20)" latency_ms=5012
+2026-11-04T09:00:13Z INFO api path=/healthz status=200 latency_ms=59
+2026-11-04T09:00:14Z WARN api path=/api/search status=429 msg="rate limit exceeded for client" latency_ms=1
+2026-11-04T09:00:18Z WARN api path=/api/search status=429 msg="rate limit exceeded for client" latency_ms=1
+2026-11-04T09:00:20Z INFO api path=/api/payments status=200 latency_ms=165
+2026-11-04T09:00:21Z INFO api path=/api/search status=200 latency_ms=17
+2026-11-04T09:00:25Z ERROR db-pool path=/api/cart status=500 msg="timeout acquiring connection from pool (max=20)" latency_ms=5037
+2026-11-04T09:00:32Z ERROR api path=/api/orders status=500 msg="NullPointerException in OrderMapper.toDto" latency_ms=56
+2026-11-04T09:00:37Z INFO api path=/api/payments status=200 latency_ms=51
+2026-11-04T09:00:39Z INFO api path=/api/payments status=200 latency_ms=53
+2026-11-04T09:00:45Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1157
+2026-11-04T09:00:46Z INFO api path=/api/search status=200 latency_ms=179
+2026-11-04T09:00:55Z INFO api path=/api/login status=200 latency_ms=124
+2026-11-04T09:01:03Z INFO api path=/api/cart status=200 latency_ms=208
+2026-11-04T09:01:06Z INFO api path=/api/cart status=200 latency_ms=25
+2026-11-04T09:01:11Z INFO api path=/api/login status=200 latency_ms=191
+2026-11-04T09:01:19Z INFO api path=/api/orders status=200 latency_ms=35
+2026-11-04T09:01:28Z INFO api path=/api/login status=200 latency_ms=43
+2026-11-04T09:01:36Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1217
+2026-11-04T09:01:45Z INFO api path=/api/login status=200 latency_ms=92
+2026-11-04T09:01:51Z INFO api path=/healthz status=200 latency_ms=209
+2026-11-04T09:01:59Z ERROR db-pool path=/api/orders status=500 msg="timeout acquiring connection from pool (max=20)" latency_ms=5034
+2026-11-04T09:02:07Z INFO api path=/api/orders status=200 latency_ms=20
+2026-11-04T09:02:12Z INFO api path=/api/payments status=200 latency_ms=215
+2026-11-04T09:02:20Z INFO api path=/api/search status=200 latency_ms=232
+2026-11-04T09:02:26Z ERROR db-pool path=/api/search status=500 msg="timeout acquiring connection from pool (max=20)" latency_ms=5045
+2026-11-04T09:02:29Z INFO api path=/api/search status=200 latency_ms=20
+2026-11-04T09:02:33Z INFO api path=/api/cart status=200 latency_ms=194
+2026-11-04T09:02:37Z INFO api path=/api/search status=200 latency_ms=25
+2026-11-04T09:02:40Z INFO api path=/healthz status=200 latency_ms=76
+2026-11-04T09:02:43Z INFO api path=/healthz status=200 latency_ms=76
+2026-11-04T09:02:50Z INFO api path=/api/payments status=200 latency_ms=231
+2026-11-04T09:02:57Z INFO api path=/api/cart status=200 latency_ms=26
+2026-11-04T09:03:00Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1855
+2026-11-04T09:03:01Z INFO api path=/healthz status=200 latency_ms=51
+2026-11-04T09:03:06Z INFO api path=/api/cart status=200 latency_ms=112
+2026-11-04T09:03:15Z INFO api path=/healthz status=200 latency_ms=86
+2026-11-04T09:03:18Z INFO api path=/healthz status=200 latency_ms=248
+2026-11-04T09:03:19Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=2507
+2026-11-04T09:03:26Z INFO api path=/api/orders status=200 latency_ms=128
+2026-11-04T09:03:33Z ERROR db-pool path=/api/orders status=500 msg="timeout acquiring connection from pool (max=20)" latency_ms=5026
+2026-11-04T09:03:41Z ERROR api path=/api/login status=500 msg="NullPointerException in OrderMapper.toDto" latency_ms=58
+2026-11-04T09:03:42Z WARN api path=/healthz status=429 msg="rate limit exceeded for client" latency_ms=2
+2026-11-04T09:03:51Z WARN api path=/api/login status=429 msg="rate limit exceeded for client" latency_ms=5
+2026-11-04T09:03:52Z ERROR db-pool path=/api/cart status=500 msg="timeout acquiring connection from pool (max=20)" latency_ms=5078
+2026-11-04T09:03:59Z ERROR api path=/api/login status=500 msg="NullPointerException in OrderMapper.toDto" latency_ms=42
+2026-11-04T09:04:05Z INFO api path=/api/orders status=200 latency_ms=222
+2026-11-04T09:04:13Z INFO api path=/api/search status=200 latency_ms=127
+2026-11-04T09:04:21Z INFO api path=/api/cart status=200 latency_ms=31
+2026-11-04T09:04:27Z INFO api path=/api/search status=200 latency_ms=217
+2026-11-04T09:04:30Z INFO api path=/api/cart status=200 latency_ms=248
+2026-11-04T09:04:39Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1010
+2026-11-04T09:04:48Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1272
+2026-11-04T09:04:53Z INFO api path=/api/cart status=200 latency_ms=96
+2026-11-04T09:04:57Z INFO api path=/healthz status=200 latency_ms=89
+2026-11-04T09:05:01Z INFO api path=/api/cart status=200 latency_ms=211
+2026-11-04T09:05:05Z INFO api path=/api/payments status=200 latency_ms=210
+2026-11-04T09:05:09Z INFO api path=/api/search status=200 latency_ms=96
+2026-11-04T09:05:10Z INFO api path=/api/login status=200 latency_ms=125
+2026-11-04T09:05:15Z INFO api path=/healthz status=200 latency_ms=249
+2026-11-04T09:05:21Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=2331
+2026-11-04T09:05:27Z WARN api path=/api/orders status=429 msg="rate limit exceeded for client" latency_ms=2
+2026-11-04T09:05:35Z INFO api path=/api/cart status=200 latency_ms=128
+2026-11-04T09:05:36Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=2309
+2026-11-04T09:05:38Z INFO api path=/api/orders status=200 latency_ms=237
+2026-11-04T09:05:45Z INFO api path=/api/cart status=200 latency_ms=127
+2026-11-04T09:05:48Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=2261
+2026-11-04T09:05:50Z INFO api path=/api/payments status=200 latency_ms=106
+2026-11-04T09:05:58Z INFO api path=/api/orders status=200 latency_ms=190
+2026-11-04T09:06:01Z INFO api path=/api/cart status=200 latency_ms=12
+2026-11-04T09:06:04Z INFO api path=/api/search status=200 latency_ms=211
+2026-11-04T09:06:07Z INFO api path=/healthz status=200 latency_ms=126
+2026-11-04T09:06:13Z ERROR api path=/healthz status=500 msg="NullPointerException in OrderMapper.toDto" latency_ms=28
+2026-11-04T09:06:14Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1320
+2026-11-04T09:06:23Z INFO api path=/api/cart status=200 latency_ms=116
+2026-11-04T09:06:27Z INFO api path=/api/cart status=200 latency_ms=12
+2026-11-04T09:06:32Z INFO api path=/healthz status=200 latency_ms=66
+2026-11-04T09:06:38Z INFO api path=/api/search status=200 latency_ms=218
+2026-11-04T09:06:41Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=2349
+2026-11-04T09:06:49Z INFO api path=/healthz status=200 latency_ms=112
+2026-11-04T09:06:58Z WARN api path=/api/cart status=429 msg="rate limit exceeded for client" latency_ms=5
+2026-11-04T09:07:07Z ERROR db-pool path=/api/search status=500 msg="timeout acquiring connection from pool (max=20)" latency_ms=5099
+2026-11-04T09:07:10Z INFO api path=/api/cart status=200 latency_ms=49
+2026-11-04T09:07:13Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1392
+2026-11-04T09:07:22Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=2876
+2026-11-04T09:07:24Z INFO api path=/api/orders status=200 latency_ms=68
+2026-11-04T09:07:28Z INFO api path=/api/orders status=200 latency_ms=134
+2026-11-04T09:07:36Z INFO api path=/api/orders status=200 latency_ms=118
+2026-11-04T09:07:42Z INFO api path=/healthz status=200 latency_ms=160
+2026-11-04T09:07:51Z INFO api path=/api/login status=200 latency_ms=120
+2026-11-04T09:08:00Z INFO api path=/api/search status=200 latency_ms=134
+2026-11-04T09:08:04Z INFO api path=/api/login status=200 latency_ms=241
+2026-11-04T09:08:13Z INFO api path=/api/cart status=200 latency_ms=220
+2026-11-04T09:08:21Z WARN api path=/api/orders status=429 msg="rate limit exceeded for client" latency_ms=4
+2026-11-04T09:08:29Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1885
+2026-11-04T09:08:36Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=2140
+2026-11-04T09:08:38Z INFO api path=/api/cart status=200 latency_ms=245
+2026-11-04T09:08:44Z ERROR api path=/api/cart status=500 msg="NullPointerException in OrderMapper.toDto" latency_ms=49
+2026-11-04T09:08:48Z INFO api path=/api/orders status=200 latency_ms=106
+2026-11-04T09:08:56Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1816
+2026-11-04T09:08:59Z INFO api path=/healthz status=200 latency_ms=108
+2026-11-04T09:09:05Z INFO api path=/api/login status=200 latency_ms=86
+2026-11-04T09:09:07Z INFO api path=/api/orders status=200 latency_ms=91
+2026-11-04T09:09:16Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=974
+2026-11-04T09:09:23Z INFO api path=/healthz status=200 latency_ms=80
+2026-11-04T09:09:32Z INFO api path=/api/orders status=200 latency_ms=240
+2026-11-04T09:09:36Z INFO api path=/api/orders status=200 latency_ms=26
+2026-11-04T09:09:41Z INFO api path=/api/cart status=200 latency_ms=74
+2026-11-04T09:09:44Z INFO api path=/api/payments status=200 latency_ms=214
+2026-11-04T09:09:49Z INFO api path=/healthz status=200 latency_ms=240
+2026-11-04T09:09:58Z INFO api path=/api/payments status=200 latency_ms=88
+2026-11-04T09:10:00Z ERROR payments-svc upstream=psp-gw path=/api/payments status=502 msg="upstream connect error: connection refused" latency_ms=1650
+2026-11-04T09:10:07Z INFO api path=/api/login status=200 latency_ms=245
+2026-11-04T09:10:08Z INFO api path=/api/login status=200 latency_ms=26
+2026-11-04T09:10:12Z ERROR db-pool path=/api/orders status=500 msg="timeout acquiring connection from pool (max=20)" latency_ms=5058
+2026-11-04T09:10:13Z INFO api path=/healthz status=200 latency_ms=111
+2026-11-04T09:10:18Z INFO api path=/api/orders status=200 latency_ms=139
+2026-11-04T09:10:22Z INFO api path=/api/cart status=200 latency_ms=72
+2026-11-04T09:10:23Z INFO api path=/api/login status=200 latency_ms=165

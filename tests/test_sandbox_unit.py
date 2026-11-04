@@ -41,6 +41,17 @@ class TestSandboxUnit:
         monkeypatch.setenv("FAKE_DOCKER_OOM", "false")
         monkeypatch.setenv("FAKE_DOCKER_RUNTIME", "runsc")
 
+    @pytest.mark.parametrize("runtime", ["runc", "runsc"])
+    def test_job_process_limit_is_exactly_the_decision_cap(self, runtime):
+        """The arena asks for pids=32; the job must get 32, not a silent floor of 64."""
+        from airlock.web.app import ARENA_CAPS
+
+        runner = SandboxRunner(runtime=runtime)
+        action = ActionRequest(id="p", task_id="t", tool="run_code", lang="bash", code="true")
+        cmd = runner._build_docker_create_command(action, dict(ARENA_CAPS), "airlock-x")
+        assert ARENA_CAPS["pids"] == 32
+        assert cmd[-1] == "32"  # RLIMIT_NPROC handed to the bootstrap
+
     def get_docker_commands(self):
         """Get logged docker commands."""
         if not self.docker_log.exists():

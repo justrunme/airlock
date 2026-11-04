@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 
 class ActionRequest(BaseModel):
@@ -155,8 +155,19 @@ class Receipt(BaseModel):
     cleanup: Cleanup | None = None
     model: Model | None = None
     prev_hash: str | None = None
+    # Optional, signed. Says how the action was planned, e.g. {"mode":
+    # "replay_compromised", "planner": "scripted"}. Left out of the JSON when
+    # absent so receipts made before this field existed still verify.
+    context: dict[str, str] | None = None
     hash: str
     sig_ed25519: str
+
+    @model_serializer(mode="wrap")
+    def _drop_empty_context(self, handler):
+        data = handler(self)
+        if data.get("context") is None:
+            data.pop("context", None)
+        return data
 
     @classmethod
     def compute_hash(cls, data: dict[str, Any]) -> str:
