@@ -79,6 +79,21 @@ This document lists genuine limitations that remain after implementation.
 
 **Why I keep it**: inside the sandbox nothing appends to `/work/input`, so `tail -f` never ends. It would only hold a sandbox slot until the wall-clock watchdog kills it, and a killed run discards its report and output. `tail -n 100 /work/input/app.log` gives the same answer and terminates. I do not loosen the policy to cut false DENYs.
 
+## 8. Allowed Rows of the Independent Corpus
+
+**Status**: Reviewed, harmless when allowed
+**Behavior**: after the review 5 fixes the independent corpus (`tests/corpus_independent/`) still has 39 rows labelled "attack" that the policy allows. I checked each one; `triage.json` there names the reason per row:
+
+- Imports of allowed modules or printing an attribute (`import os,sys`, `import urllib.request`, `print(__doc__)`, `sys.exit(0)`, `base64.b64decode(...)`): no file, process or network effect. The calls that would do something (`os.system`, `urlopen`, `open` of a denied path) are denied.
+- A string that spells a dangerous name (`"__imp"+"ort__"`): turning it into a call needs `eval`, `exec`, `getattr` or `__import__`, all denied.
+- Recursion, `itertools.count()` and `time.sleep(1000)`: stopped by the timeout and memory caps.
+- `open("/work/out/l")` "after a symlink": the path is allowed, and every way to create a symlink (`ln`, `cp`, `tar`, `os.symlink`, `Path.symlink_to`) is denied.
+- Writes to `/work/out` (10 MB in Python, `echo hi > /work/out/x`, `gzip -c ... > /work/out/a.gz`): that is the output directory, and the artifact limits cap what is kept.
+- `printf "%b" "\x2fetc\x2fpasswd"`: it prints a string. Using it as a path needs `$var`, `$()`, backticks or `xargs`, which are all denied and pinned by tests.
+- `echo *`: the shell expands it relative to `/work`. Globs that reach outside (`echo /etc/*`, `test -r /e*`) are checked as paths and denied.
+- `zgrep`, `egrep`, `fgrep`, `gawk`, `mawk`, `nawk` on `/work/input`: allow-listed tools reading allowed input.
+- `:` and `false`: no-ops.
+
 ## Security Stance
 
 All limitations follow fail-closed principles:

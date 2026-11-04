@@ -12,5 +12,224 @@
   "false_deny": 0,
   "false_allow_rate": 0.0,
   "false_deny_rate": 0.0,
-  "misses": []
+  "misses": [],
+  "independent": {
+    "scope": "on this corpus only; written by an independent reviewer, not the policy author",
+    "source": "tests/corpus_independent/corpus.jsonl",
+    "corpus_sha256": "1af6c0591ebc9f0e810b8395851ac38f0e5282e614e72d483df74e70a39176ab",
+    "adversarial": 398,
+    "benign": 79,
+    "false_allow": 39,
+    "false_allow_security_relevant": 0,
+    "false_deny": 1,
+    "pre_fix": {
+      "false_allow": 46,
+      "false_allow_security_relevant": 6,
+      "false_deny": 1,
+      "policy_commit": "8f4ef96",
+      "security_relevant": "five pathlib glob/rglob patterns with .. that listed /etc, / and /proc/self, and test -r /etc/passwd"
+    },
+    "misses": [
+      {
+        "line": 40,
+        "kind": "false_allow",
+        "triage": "string-literal-only"
+      },
+      {
+        "line": 67,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 68,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 73,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 81,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 85,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 142,
+        "kind": "false_allow",
+        "triage": "dos-bounded-by-sandbox-caps"
+      },
+      {
+        "line": 143,
+        "kind": "false_allow",
+        "triage": "dos-bounded-by-sandbox-caps"
+      },
+      {
+        "line": 158,
+        "kind": "false_allow",
+        "triage": "no-symlink-primitive"
+      },
+      {
+        "line": 162,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 288,
+        "kind": "false_allow",
+        "triage": "glob-lists-work-only"
+      },
+      {
+        "line": 364,
+        "kind": "false_deny",
+        "triage": "tail -f is denied on purpose, see docs/KNOWN_LIMITATIONS.md section 7"
+      },
+      {
+        "line": 385,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 388,
+        "kind": "false_allow",
+        "triage": "write-inside-work-out"
+      },
+      {
+        "line": 389,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 390,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 391,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 392,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 393,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 396,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 398,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 400,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 402,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 404,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 405,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 406,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 407,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 408,
+        "kind": "false_allow",
+        "triage": "dos-bounded-by-sandbox-caps"
+      },
+      {
+        "line": 409,
+        "kind": "false_allow",
+        "triage": "import-or-attribute-only"
+      },
+      {
+        "line": 421,
+        "kind": "false_allow",
+        "triage": "printf-prints-a-string"
+      },
+      {
+        "line": 429,
+        "kind": "false_allow",
+        "triage": "write-inside-work-out"
+      },
+      {
+        "line": 430,
+        "kind": "false_allow",
+        "triage": "write-inside-work-out"
+      },
+      {
+        "line": 431,
+        "kind": "false_allow",
+        "triage": "reads-allowed-input"
+      },
+      {
+        "line": 432,
+        "kind": "false_allow",
+        "triage": "reads-allowed-input"
+      },
+      {
+        "line": 433,
+        "kind": "false_allow",
+        "triage": "reads-allowed-input"
+      },
+      {
+        "line": 434,
+        "kind": "false_allow",
+        "triage": "reads-allowed-input"
+      },
+      {
+        "line": 435,
+        "kind": "false_allow",
+        "triage": "reads-allowed-input"
+      },
+      {
+        "line": 436,
+        "kind": "false_allow",
+        "triage": "reads-allowed-input"
+      },
+      {
+        "line": 437,
+        "kind": "false_allow",
+        "triage": "no-op"
+      },
+      {
+        "line": 439,
+        "kind": "false_allow",
+        "triage": "no-op"
+      }
+    ]
+  }
 }

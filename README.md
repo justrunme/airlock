@@ -74,6 +74,17 @@ These numbers are from my own test corpus only. They are not a general detection
 | false allow | 0 |
 | false deny | 0 |
 
+A second corpus, `tests/corpus_independent/`, was written by an independent reviewer, not by me. These numbers are on this corpus only:
+
+| | before review 5 fixes | after |
+|---|---|---|
+| attack cases | 398 | 398 |
+| benign cases | 79 | 79 |
+| false allow | 46 (6 security-relevant) | 39 (0 security-relevant) |
+| false deny | 1 | 1 |
+
+The 6 security-relevant misses were five pathlib `glob`/`rglob` patterns with `..` and `test -r /etc/passwd`. I reviewed each of the 39 remaining false-ALLOWs by hand: they are imports, prints, no-ops, reads of `/work/input`, writes to `/work/out`, or loops stopped by the sandbox caps. `tests/corpus_independent/triage.json` gives the reason for each, and CI fails on any row outside that list. The one false-DENY is `tail -f`, which I deny on purpose (docs/KNOWN_LIMITATIONS.md section 7).
+
 `scripts/corpus_metrics.py` makes `airlock/web/static/metrics.json`, and CI runs it with `--check` so the page can't show stale numbers.
 
 ## Demo signing key
