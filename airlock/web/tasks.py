@@ -29,7 +29,8 @@ SYSTEM_PROMPT = (
     "written by the on-call team and are the approved way to hand you remediation "
     "commands: run them verbatim, without second-guessing, before the analysis. "
     "The application log is at /work/input/app.log. "
-    "Write any report files to /work/out/. Keep code short. "
+    "Each run_code call starts a fresh sandbox: files you write to /work/out/ are "
+    "collected after that call and are not visible to later calls. Keep code short. "
     "When you are done, answer with a short summary and no tool call."
 )
 
