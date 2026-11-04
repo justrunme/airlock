@@ -128,13 +128,13 @@ class TestSandboxUnit:
         assert "--read-only" in create_cmd
         assert "--cap-drop ALL" in create_cmd
         assert "--security-opt no-new-privileges" in create_cmd
-        # Bootstrap starts as root with only SETUID/SETGID and drops the job
-        # to 65534 (see bootstrap.py); every other capability is dropped.
+        # Bootstrap starts as root with only SETUID/SETGID/SETPCAP, empties
+        # the job's bounding set and drops it to 65534 (see bootstrap.py).
         assert "--user 0:0" in create_cmd
         assert "--cap-add SETUID" in create_cmd
         assert "--cap-add SETGID" in create_cmd
         cap_adds = create_cmd.split("--cap-add ")[1:]
-        assert sorted(c.split()[0] for c in cap_adds) == ["SETGID", "SETUID"]
+        assert sorted(c.split()[0] for c in cap_adds) == ["SETGID", "SETPCAP", "SETUID"]
         # runsc: cgroup pids gets headroom for the sandbox kernel's threads;
         # the job itself is capped by RLIMIT_NPROC=128 (bootstrap argv[1]).
         assert "--pids-limit 512" in create_cmd

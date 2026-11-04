@@ -482,7 +482,7 @@ class SandboxRunner:
             "/tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777",
             "--tmpfs",
             "/dev/shm:rw,noexec,nosuid,nodev,size=8m,mode=1777",
-            # The fixed bootstrap starts as uid 0 with only SETUID/SETGID, so it
+            # The fixed bootstrap starts as uid 0 with only SETUID/SETGID/SETPCAP, so it
             # can run the job as uid 65534. Different uids keep the job away
             # from the bootstrap's /proc entries, memory and report channel.
             "--user",
@@ -493,6 +493,9 @@ class SandboxRunner:
             "SETUID",
             "--cap-add",
             "SETGID",
+            # only so the job child can empty its bounding set before setuid
+            "--cap-add",
+            "SETPCAP",
             "--security-opt",
             "no-new-privileges",
             "--pids-limit",
