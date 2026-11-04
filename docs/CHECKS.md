@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **668** in 15 files.
+Total collected tests: **677** in 16 files.
 
 | File | Tests |
 |------|------:|
@@ -25,6 +25,7 @@ Total collected tests: **668** in 15 files.
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
 | `tests/test_web_api.py` | 45 |
+| `tests/test_web_js_crosscheck.py` | 9 |
 
 ## `tests/test_agent.py`
 
@@ -768,3 +769,17 @@ Total collected tests: **668** in 15 files.
 | `TestReceipts::test_corrupt_stored_receipt_not_served` |  |
 | `TestReceipts::test_chain_append_is_serialised` |  |
 | `test_sandbox_never_gets_inference_key` | The docker create command carries no host environment besides LANG/LC_ALL. |
+
+## `tests/test_web_js_crosscheck.py`
+
+| Test | Description |
+|------|-------------|
+| `test_jcs_vectors_match_python[empty object]` |  |
+| `test_jcs_vectors_match_python[key order by utf16 code units]` |  |
+| `test_jcs_vectors_match_python[nested]` |  |
+| `test_jcs_vectors_match_python[numbers]` |  |
+| `test_jcs_vectors_match_python[string escapes]` |  |
+| `test_jcs_vectors_match_python[rfc8785 example]` |  |
+| `test_jcs_vectors_match_python[unicode passthrough]` |  |
+| `test_receipt_fixture_is_current` |  |
+| `test_fresh_python_receipt_verifies_in_node_and_tamper_fails` |  |
