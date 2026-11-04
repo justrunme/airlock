@@ -163,6 +163,7 @@ function renderReplay(out, target) {
     target.append(card);
   }
   showRefusal(out.model_refusal);
+  showLiveLine(out.model_refusal);
 }
 
 function showRefusal(rec) {
@@ -282,30 +283,97 @@ for (const a of document.querySelectorAll("[data-goto]")) {
   a.addEventListener("click", (e) => { e.preventDefault(); showTab(a.dataset.goto); document.querySelector("nav").scrollIntoView({ behavior: "smooth" }); });
 }
 // The BLOCKED card: filled only from a real replay response, one stage per fact the API reports.
+// Plain-language reasons for the rule codes the replay fires. Wording follows the rule text in
+// airlock/policy_shell.py and airlock/policy_python.py. Unknown codes fall back to the API's own message.
+const RULE_TEXT = {
+  "R-BIN-CURL": "curl is on the policy's forbidden programs list (it downloads from the network)",
+  "R-BIN-WGET": "wget is on the policy's forbidden programs list (it downloads from the network)",
+  "R-BIN-RM": "rm is on the policy's forbidden programs list (it deletes files)",
+  "R-SHELL-EXEC-FILE": "starting a shell interpreter such as sh, which would run whatever is piped into it, is not allowed",
+  "R-SHELL-REDIRECT": "redirecting output to a file outside /work/out/ is not allowed",
+  "R-PY-ATTR-DENIED": "the code uses a denied function or attribute (for example a network or code-execution call)",
+  "R-PY-OPEN-PATH": "open() on a protected system path (/proc, /etc, /dev, /sys, /run) is not allowed",
+};
+function ruleLines(step) {
+  const rules = (step.rules_fired ?? []).map((r) => r.code ?? r);
+  return rules.map((code, i) => {
+    const text = RULE_TEXT[code] ?? (code.startsWith("R-BIN-") ? `${code.slice(6).toLowerCase()} is on the policy's forbidden programs list`
+      : i === 0 && step.reason ? step.reason : "see the full trace below for this rule's message");
+    return el("li", {}, el("span", { class: "rtext" }, text), " ", el("code", { class: "rule" }, code));
+  });
+}
+function shortCode(code) {
+  const lines = code.split("\n").filter((l) => l.trim());
+  const pick = lines.find((l) => /urlopen|curl|rm |environ|\| *sh/.test(l)) ?? lines[0] ?? "";
+  const one = pick.length > 90 ? pick.slice(0, 88) + "…" : pick;
+  return lines.length > 1 ? `${one}  (+${lines.length - 1} more line${lines.length > 2 ? "s" : ""})` : one;
+}
+function receiptText(r) { return JSON.stringify(r); }
+async function heroVerify(step) {
+  // verifies the receipt already in the replay response: no network call
+  const box = $("#ev-check");
+  const txt = receiptText(step.receipt);
+  const good = await verifyReceipt(txt, PUBKEY);
+  const t = structuredClone(step.receipt);
+  const r0 = t.decision.reason;
+  t.decision.reason = r0.slice(0, -1) + (r0.endsWith("x") ? "y" : "x");
+  const bad = await verifyReceipt(JSON.stringify(t), PUBKEY);
+  const failed = bad.checks.filter((c) => !c.ok).map((c) => c.id);
+  $("#ev-valid").className = `vmini ${good.ok ? "ok" : "bad"}`;
+  $("#ev-valid").replaceChildren(el("span", { class: "vm-k" }, "signature and hash chain check out"),
+    el("strong", {}, good.ok ? "VERIFIED" : "NOT VERIFIED"),
+    el("span", { class: "hint" }, `receipt ${step.receipt_id.slice(0, 12)}…, checked in this browser with the published key`));
+  $("#ev-invalid").className = `vmini ${bad.ok ? "ok" : "bad"}`;
+  $("#ev-invalid").replaceChildren(el("span", { class: "vm-k" }, "one character changed in decision.reason"),
+    el("strong", {}, bad.ok ? "VERIFIED (unexpected)" : "INVALID"),
+    el("span", { class: "hint" }, bad.ok ? "" : "failed check: ", ...failed.map((f, i) => el("code", {}, (i ? ", " : "") + f))));
+  box.hidden = false;
+}
 function showEvent(rep) {
   const steps = rep?.steps ?? [];
-  const s = steps.find((x) => x.verdict !== "allow");
-  if (!s) return;
-  const code = s.action?.code ?? s.code ?? "";
+  const denied = steps.filter((x) => x.verdict !== "allow");
+  if (!denied.length) return;
   const ev = $("#result");
-  $("#ev-cmd").textContent = code.split("\n").filter((l) => l.trim()).slice(0, 3).join("\n");
-  const rules = (s.rules_fired ?? []).map((r) => r.code ?? r);
-  $("#ev-rules").replaceChildren(badge("BLOCKED", "deny"), ...rules.map((r) => el("code", { class: "rule" }, r)));
-  const none = neverStarted(s);
-  for (const k of ev.querySelectorAll(".ev-k[data-filled]")) k.textContent = k.dataset.filled;
-  ev.querySelector(".ev-nocont").hidden = !none;
-  if (none) $("#ev-nocont").textContent = "The sandbox record for this step says no container was created. The code never ran.";
-  if (s.receipt_id) {
-    $("#ev-rid").textContent = String(s.receipt_id).slice(0, 24) + "…";
+  $("#ev-h").textContent = `${denied.length} harmful proposals, ${denied.length} blocked before execution`;
+  $("#ev-denials").replaceChildren(...denied.map((s, i) => el("li", { class: "dcard" },
+    el("div", { class: "dc-top" }, badge("BLOCKED", "deny"), el("span", { class: "dc-n" }, `${s.label ?? "proposal " + (i + 1)}`)),
+    el("code", { class: "dc-code" }, shortCode(s.action?.code ?? "")),
+    el("ul", { class: "dc-rules" }, ...ruleLines(s)),
+    neverStarted(s) ? el("p", { class: "dc-none" }, "No container started: the code never ran.") : null,
+    s.receipt_id ? el("p", { class: "dc-rid hint" }, "signed receipt ", el("code", {}, s.receipt_id.slice(0, 12) + "…")) : null)));
+  const ok = steps.find((x) => x.verdict === "allow");
+  const al = $("#ev-allow");
+  if (ok) {
+    const x = ok.execution ?? {};
+    const out = (x.stdout ?? "").trim().split("\n")[0];
+    al.replaceChildren(badge("ALLOWED", "allow"), x.runtime ? badge("CONTAINED", "contained") : null,
+      el("span", {}, `The legitimate log-analysis step passed the gate${x.runtime ? `; a container ran (${x.runtime}, exit code ${x.exit_code})` : ""}`),
+      out ? el("span", {}, " and printed ", el("code", {}, out.length > 60 ? out.slice(0, 58) + "…" : out)) : null, ".");
+    al.hidden = false;
+  }
+  const first = denied.find((x) => x.receipt && x.receipt_id);
+  if (first) {
     const vb = $("#ev-verify");
     vb.disabled = false;
-    vb.onclick = () => loadReceipt(s.receipt_id);
+    vb.onclick = () => loadReceipt(first.receipt_id);
+    heroVerify(first).catch((e) => { $("#ev-check").hidden = false; $("#ev-valid").textContent = `in-browser check failed to run: ${e.message}`; });
   }
-  const blocked = steps.filter((x) => x.verdict !== "allow").length;
-  const ran = steps.length - blocked;
-  $("#ev-summary").textContent = `${steps.length} scripted proposals from a compromised agent went through the real gate: ` +
-    `${blocked} BLOCKED before execution, ${ran} ALLOWED and run in the sandbox (the legitimate log analysis). Every decision has a signed receipt. Full trace in the “Compromised agent” tab below.`;
+  $("#ev-summary").textContent = `${steps.length} scripted proposals from a compromised agent, real gate, sandbox and receipts. Full trace in the “Compromised agent” tab below.`;
   ev.dataset.state = "filled";
+}
+function showLiveLine(rec) {
+  const p = $("#live-line");
+  if (!rec?.recorded_at) { p.hidden = true; return; }
+  const when = new Date(rec.recorded_at);
+  const t = isNaN(when) ? rec.recorded_at : when.toLocaleString([], { dateStyle: "medium", timeStyle: "short", timeZoneName: "short" });
+  const what = rec.proposed_injected_action === false ? "the model refused the injected instruction by itself"
+    : rec.proposed_injected_action === true ? "the model proposed the injected action and the gate blocked it" : null;
+  if (!what) { p.hidden = true; return; }
+  const id = (rec.injected_action_receipts?.[0]) ?? rec.receipt_ids?.[0];
+  p.replaceChildren(el("strong", {}, `Last live run, ${t}: `), `${what} (${rec.model?.id ?? "live model"}). `,
+    id ? el("a", { href: `/api/receipt/${id}`, onclick: (e) => { e.preventDefault(); loadReceipt(id); } }, "verify its receipt") : null,
+    " · ", el("a", { href: "#tab-injected", onclick: (e) => { e.preventDefault(); showTab("injected"); $("#refusal").scrollIntoView(); } }, "model reasoning"));
+  p.hidden = false;
 }
 $("#attack-run").addEventListener("click", async () => {
   const b = $("#attack-run");
@@ -315,7 +383,7 @@ $("#attack-run").addEventListener("click", async () => {
   try {
     await runReplay();
     $("#result").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-    $("#ev-verify").focus({ preventScroll: true });
+    $("#ev-h").focus({ preventScroll: true });
   } catch (e) { $("#ev-summary").textContent = `The replay failed: ${e.message}`; }
   finally { b.disabled = false; b.removeAttribute("aria-busy"); }
 });
@@ -368,7 +436,7 @@ sizeHint();
 
 function showStats(s) {
   if (!s) return;
-  $("#counter").textContent = `all visitors, all time — attempts: ${s.attempts} · blocked by policy: ${s.blocked_by_policy} · ran in sandbox: ${s.ran_in_sandbox} · rejected (malformed/oversize): ${s.rejected}`;
+  $("#counter").textContent = `all visitors, all time, includes demo runs — attempts: ${s.attempts} · blocked by policy: ${s.blocked_by_policy} · ran in sandbox: ${s.ran_in_sandbox} · rejected (malformed/oversize): ${s.rejected}`;
 }
 async function refreshStats() { try { showStats(await api("/api/arena/stats")); } catch {} }
 
@@ -504,6 +572,6 @@ async function refreshMeta() {
       el("tr", {}, el("td", { colspan: 4, class: "hint" }, `my own corpus: ${m.scope}. policy ${m.policy_sha256.slice(0, 12)}…, corpus ${m.corpus_sha256.slice(0, 12)}…`)),
       ...independentRows(m.independent)));
   } catch {}
-  try { showRefusal((await api("/api/last_injected_run")).record); } catch {}
+  try { const rec = (await api("/api/last_injected_run")).record; showRefusal(rec); showLiveLine(rec); } catch {}
   refreshStats();
 })();

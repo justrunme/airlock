@@ -646,8 +646,39 @@ def test_blocked_card_claims_nothing_until_filled(make):
     assert 'data-state="empty"' in panel and "Nothing has run yet." in panel
     # result words only live in data-filled, which app.js copies in from a real replay response
     visible = re.sub(r'data-filled="[^"]*"', "", panel)
-    for word in ("BLOCKED", "Blocked", "No container", "Nothing.", "DENY", "VERIFIED"):
+    for word in (
+        "BLOCKED",
+        "Blocked",
+        "No container",
+        "Nothing.",
+        "DENY",
+        "VERIFIED",
+        "INVALID",
+        "ALLOWED",
+    ):
         assert word not in visible, word
+    assert (
+        '<div id="ev-check" class="ev-check" hidden>' in panel
+        and '<p id="ev-allow" class="ev-allow" hidden>' in panel
+    )
+    # the last-live-run line stays hidden until a recorded run fills it
+    assert '<p id="live-line" class="live-line" hidden></p>' in html
+
+
+def test_hero_reasons_cover_every_rule_the_replay_fires(make):
+    from pathlib import Path
+
+    js = Path("airlock/web/static/app.js").read_text()
+    mapped = set(re.findall(r'"(R-[A-Z0-9-]+)": "', js))
+    client = make()[0]
+    fired = {r for s in _replay(client)["steps"] for r in s["rules_fired"]}
+    assert fired and fired <= mapped, fired - mapped
+    src = Path("airlock/policy_shell.py").read_text() + Path("airlock/policy_python.py").read_text()
+    for code in mapped:
+        if code.startswith("R-BIN-"):
+            assert f'"{code[6:].lower()}"' in src, code  # listed as a forbidden binary
+        else:
+            assert f'"{code}"' in src, code
 
 
 def test_share_metadata_points_at_the_static_image(make):

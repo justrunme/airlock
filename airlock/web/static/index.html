@@ -41,21 +41,23 @@
   <p class="threat"><strong>The threat:</strong> the agent read a log that told it to run
   <code>curl | sh</code>. Airlock assumes the agent is already compromised and asks one question:
   can an independent gate stop the action?</p>
+  <p id="live-line" class="live-line" hidden></p>
 </header>
 
 <section id="result" class="event" data-state="empty" aria-live="polite" aria-label="Result of the attack replay">
-  <ol class="ev-stages">
-    <li class="ev ev-detect"><span class="ev-k" data-filled="Agent action detected">1 · Agent proposal</span>
-      <code id="ev-cmd" class="ev-cmd">Press “Watch Airlock stop an attack” to see the real proposal</code></li>
-    <li class="ev ev-block"><span class="ev-k" data-filled="Blocked before execution">2 · Gate decision</span>
-      <span id="ev-rules" class="ev-v">waiting for the gate</span></li>
-    <li class="ev ev-nocont"><span class="ev-k" data-filled="No container started">3 · Sandbox</span>
-      <span id="ev-nocont" class="ev-v">waiting for the sandbox record</span></li>
-    <li class="ev ev-receipt"><span class="ev-k" data-filled="Signed receipt">4 · Receipt</span>
-      <span class="ev-v"><code id="ev-rid">waiting for the receipt</code></span>
-      <button id="ev-verify" class="small" disabled>Verify in browser</button></li>
+  <h2 class="ev-h" id="ev-h" tabindex="-1">The replay result appears here</h2>
+  <ol id="ev-denials" class="denials">
+    <li class="dcard dcard-empty">Press “Watch Airlock stop an attack”. Each harmful proposal of the replay gets its own card, built from the API response.</li>
   </ol>
-  <p id="ev-summary" class="ev-summary hint">Nothing has run yet.</p>
+  <p id="ev-allow" class="ev-allow" hidden></p>
+  <div id="ev-check" class="ev-check" hidden>
+    <div id="ev-valid" class="vmini"></div>
+    <div id="ev-invalid" class="vmini"></div>
+  </div>
+  <div class="row ev-actions">
+    <button id="ev-verify" class="small" disabled>Verify in browser</button>
+    <span id="ev-summary" class="ev-summary hint">Nothing has run yet.</span>
+  </div>
 
   <div class="guided">
     <h2 class="demo-h">Demo in 3 steps</h2>
@@ -179,7 +181,7 @@
   <p>Submit Python or bash. It goes through the same policy and sandbox as the agent's code:
   no network, read-only root, no capabilities, no secrets, 10&nbsp;s, 128&nbsp;MB, 32 processes (RLIMIT_NPROC).
   Benign code runs; anything the policy does not understand is denied.</p>
-  <p class="hint">The counter below is global: it adds up every submission from every visitor to this server, not just yours.</p>
+  <p class="hint">The counter below is global: all visitors, all time, includes demo runs (the guided demo submits <code>print(1+1)</code> here). It is not a count of external attacks.</p>
   <div class="counter" id="counter">attempts: &ndash; &middot; blocked: &ndash; &middot; ran: &ndash; &middot; rejected: &ndash;</div>
   <div class="examples" id="examples"></div>
   <div class="row">
