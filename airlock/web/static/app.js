@@ -288,8 +288,10 @@ function showBeforeAfter(rep) {
   const code = s.action?.code ?? s.code ?? "";
   $("#ba-code").textContent = code.split("\n").slice(0, 4).join("\n");
   $("#ba-rule").textContent = `BLOCKED ${(s.rules_fired ?? []).map((r) => r.code ?? r).join(", ")}`;
+  $("#ba-code").classList.remove("ba-placeholder");
+  $("#ba-ran").textContent = neverStarted(s) ? "Nothing." : "";
   $("#ba-why").textContent = neverStarted(s) ? "The sandbox never started for this step. Signed receipt " + String(s.receipt_id).slice(0, 8) + "…" : "Blocked by the gate.";
-  $("#beforeafter").hidden = false;
+  $("#beforeafter").dataset.state = "filled";
 }
 $("#demo-run").addEventListener("click", async () => {
   const b = $("#demo-run");

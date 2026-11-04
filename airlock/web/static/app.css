@@ -89,10 +89,13 @@ button.small { padding:3px 8px; font-size:12px; align-self:flex-start; }
 .beforeafter { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:10px; align-items:stretch; margin:14px 0; }
 .beforeafter > div { border:1px solid var(--line); border-radius:8px; padding:10px 12px; min-width:0; }
 .ba-label { font-size:12px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
-.ba-before { background:#2a1d10; } .ba-before pre { margin:0; white-space:pre-wrap; word-break:break-word; color:var(--warn); font-size:14px; }
+.ba-before { background:#2a1d10; } .ba-before pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--warn); font-size:14px; }
 .ba-arrow { align-self:center; background:#3d1214; color:var(--bad); font-weight:700; text-align:center; }
 .ba-after { background:#12361d; } .ba-nothing { font-size:28px; font-weight:700; color:var(--ok); margin:0 0 4px; }
 @media (max-width:600px) { .beforeafter { grid-template-columns:minmax(0,1fr); } }
 .statuses { font-size:13px; line-height:1.9; color:var(--mut); }
 .closing { font-size:16px; font-weight:600; margin:14px 0 4px; }
 .contained { background:#10284a; color:var(--acc); }
+.beforeafter[data-state=empty] > div { background:#11141a; }
+.beforeafter[data-state=empty] .ba-arrow { color:var(--mut); }
+.ba-before pre.ba-placeholder { color:var(--mut); font-family:inherit; }

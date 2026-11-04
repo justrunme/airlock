@@ -27,10 +27,11 @@
     <button id="demo-run">Run the 3-step demo (about 10 s)</button>
     <span class="hint" id="demo-status">No model call: the replay uses scripted proposals, the gate, sandbox and receipts are real.</span>
   </div>
-  <div id="beforeafter" class="beforeafter" hidden>
-    <div class="ba-before"><div class="ba-label">What the agent proposed</div><pre id="ba-code"></pre></div>
-    <div class="ba-arrow" id="ba-rule">DENY</div>
-    <div class="ba-after"><div class="ba-label">What actually ran</div><p class="ba-nothing">Nothing.</p><p class="hint" id="ba-why"></p></div>
+  <div id="beforeafter" class="beforeafter" data-state="empty">
+    <div class="ba-before"><div class="ba-label">What the agent proposed</div><pre id="ba-code" class="ba-placeholder">Run the demo to see the proposed action</pre></div>
+    <div class="ba-arrow" id="ba-rule">vs</div>
+    <div class="ba-after"><div class="ba-label">What actually ran</div><p class="ba-nothing" id="ba-ran"></p><p class="hint" id="ba-why">Run the demo to see what ran</p></div>
+  </div>
   </div>
   <p class="statuses"><span class="badge deny">BLOCKED</span> the gate denied it before anything ran
   · <span class="badge allow">ALLOWED</span> it passed the gate

@@ -606,3 +606,14 @@ def test_blocked_steps_carry_the_fields_the_strip_shows(make):
         assert s["sandbox_started"] is False and s.get("execution") is None and s["receipt_id"]
     # only the replay's allowed step reached the runner
     assert len(runner.calls) == 1
+
+
+def test_before_after_claims_nothing_until_filled(make):
+    html = make()[0].get("/").text
+    i = html.index('id="beforeafter"')
+    panel = html[i : html.index("</div>\n  </div>", i)]
+    assert 'data-state="empty"' in panel
+    assert "Run the demo to see the proposed action" in panel
+    assert "Run the demo to see what ran" in panel
+    # no result words before the replay has filled the panel from the API
+    assert "Nothing." not in panel and "BLOCKED" not in panel and "DENY" not in panel
