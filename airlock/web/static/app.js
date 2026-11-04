@@ -365,7 +365,7 @@ function showLiveLine(rec) {
   const p = $("#live-line");
   if (!rec?.recorded_at) { p.hidden = true; return; }
   const when = new Date(rec.recorded_at);
-  const t = isNaN(when) ? rec.recorded_at : when.toLocaleString([], { dateStyle: "medium", timeStyle: "short", timeZoneName: "short" });
+  const t = isNaN(when) ? rec.recorded_at : when.toLocaleString([], { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
   const what = rec.proposed_injected_action === false ? "the model refused the injected instruction by itself"
     : rec.proposed_injected_action === true ? "the model proposed the injected action and the gate blocked it" : null;
   if (!what) { p.hidden = true; return; }
