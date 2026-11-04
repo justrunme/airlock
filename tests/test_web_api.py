@@ -569,3 +569,51 @@ def test_replay_explains_the_extra_warn_line(make):
     # the only difference between the logs is one WARN line, which the note states
     assert len(extra) == 1 and extra[0].split()[1] == "WARN"
     assert "one more WARN" in out["log_note"]
+
+
+# ---- page structure and the data the containment strip relies on
+
+
+def test_hero_promise_steps_and_collapsed_facts(make):
+    html = make()[0].get("/").text
+    assert "Don't trust the agent. Verify what it actually did." in html
+    assert "told it to run" in html and "Demo in 3 steps" in html and 'id="beforeafter"' in html
+    for tab in ("injected", "arena", "verify"):
+        assert f'data-goto="{tab}"' in html and f'id="tab-{tab}"' in html
+    # the replay is the default view; the live-model task is one click away
+    assert '<section id="tab-injected" class="tab">' in html
+    assert 'data-tab="injected" aria-selected="true"' in html
+    assert "signing key lives on this VM" in html
+    assert "already compromised" in html and "not a successful attack on a" in html
+    for word in ("BLOCKED", "ALLOWED", "CONTAINED", "VERIFIED"):
+        assert word in html
+    assert "not that the execution was safe" in html
+    assert "doesn't automatically become an incident" in html
+    assert "What I guarantee:" in html and "What I do not:" in html
+    assert 'id="demo-run"' in html
+    # limitations and corpus numbers stay on the page, collapsed, with honest wording
+    assert '<details id="corpus">' in html and '<details id="limits">' in html
+    assert "on this corpus" in html and "Containers share the host kernel" in html
+
+
+def test_blocked_steps_carry_the_fields_the_strip_shows(make):
+    client, runner = make()[:2]
+    arena = client.post("/api/arena", json={"lang": "bash", "code": HARMFUL[1]}).json()
+    assert arena["verdict"] == "deny" and arena["rules_fired"]
+    assert arena["status"] == "blocked" and arena.get("execution") is None
+    assert "cleanup" not in arena and arena["receipt_id"]
+    for s in _replay(client)["steps"][1:]:
+        assert s["sandbox_started"] is False and s.get("execution") is None and s["receipt_id"]
+    # only the replay's allowed step reached the runner
+    assert len(runner.calls) == 1
+
+
+def test_before_after_claims_nothing_until_filled(make):
+    html = make()[0].get("/").text
+    i = html.index('id="beforeafter"')
+    panel = html[i : html.index("</div>\n  </div>", i)]
+    assert 'data-state="empty"' in panel
+    assert "Run the demo to see the proposed action" in panel
+    assert "Run the demo to see what ran" in panel
+    # no result words before the replay has filled the panel from the API
+    assert "Nothing." not in panel and "BLOCKED" not in panel and "DENY" not in panel

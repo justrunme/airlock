@@ -15,6 +15,18 @@ function el(tag, attrs = {}, ...kids) {
 const badge = (text, cls) => el("span", { class: `badge ${cls ?? text}` }, text);
 const kv = (pairs) =>
   el("dl", { class: "kv" }, pairs.filter(([, v]) => v != null && v !== "").flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
+// Four status words, never mixed:
+// BLOCKED   the policy gate denied the action before anything ran
+// ALLOWED   the action passed the gate (no sandbox result yet, or it did not run)
+// CONTAINED allowed code ran inside the restricted sandbox (runsc, no network, limits)
+// VERIFIED  a receipt's signature and hash chain check out (used only in the verifier)
+function statusWord(step) {
+  if (!step?.verdict) return ["ERROR", "fail"];
+  if (step.verdict !== "allow") return ["BLOCKED", "deny"];
+  if (step.execution || step.sandbox_started === true) return ["CONTAINED", "contained"];
+  return ["ALLOWED", "allow"];
+}
+const statusBadge = (step) => { const [w, c] = statusWord(step); return badge(w, c); };
 const pre = (text, cls = "scroll") => el("pre", { class: cls }, text);
 
 let PUBKEY = "";
@@ -45,10 +57,39 @@ for (const b of document.querySelectorAll("nav button")) {
 }
 function showTab(name) { document.querySelector(`nav button[data-tab=${name}]`).click(); }
 
+// ---------- containment strip for a blocked action (built only from the API response)
+function neverStarted(step) {
+  // replay steps say it directly; for others the pipeline only creates a container on allow
+  if (step.sandbox_started === false) return true;
+  if (step.sandbox_started === true) return false;
+  return step.verdict !== "allow" && step.status === "blocked" && step.execution == null && step.cleanup == null;
+}
+function containment(step) {
+  if (!step.verdict || step.verdict === "allow") return null;
+  const first = (step.action?.code ?? "").split("\n").find((l) => l.trim()) ?? "";
+  const parts = [
+    el("li", { class: "c-propose" }, el("span", { class: "c-n" }, "1"), el("strong", {}, "Proposed"),
+      el("code", { class: "c-code" }, first.length > 70 ? first.slice(0, 70) + "…" : first)),
+    el("li", { class: "c-deny" }, el("span", { class: "c-n" }, "2"), el("strong", {}, "BLOCKED"),
+      el("span", {}, step.rules_fired?.length ? step.rules_fired.join(", ") : "no rule code")),
+  ];
+  if (neverStarted(step)) {
+    parts.push(el("li", { class: "c-nosandbox" }, el("span", { class: "c-n" }, "3"), el("strong", {}, "Sandbox never started"),
+      el("span", {}, "no container was created")));
+  }
+  if (step.receipt_id) {
+    parts.push(el("li", { class: "c-receipt" }, el("span", { class: "c-n" }, String(parts.length + 1)), el("strong", {}, "Signed receipt"),
+      el("button", { class: "secondary small", onclick: () => loadReceipt(step.receipt_id) }, `verify ${step.receipt_id.slice(0, 8)}…`)));
+  }
+  return el("ol", { class: "contain", "aria-label": "containment of a blocked action" }, parts);
+}
+
 // ---------- rendering a pipeline step
 function renderStep(step) {
   const card = el("div", { class: "card" });
-  const head = el("div", {}, badge(step.verdict ?? "error", step.verdict ?? "fail"), badge(step.status ?? "?", "neutral"));
+  const strip = containment(step);
+  if (strip) card.append(strip);
+  const head = el("div", {}, statusBadge(step), el("span", { class: "hint" }, `gate verdict: ${step.verdict ?? "none"} · status: ${step.status ?? "?"}`));
   if (step.rules_fired?.length) head.append(" ", el("strong", {}, step.rules_fired.join(", ")));
   card.append(head);
   if (step.error && !step.verdict) { card.append(el("p", { class: "err" }, step.error)); return card; }
@@ -99,13 +140,14 @@ function renderReplay(out, target) {
   target.replaceChildren();
   const blocked = out.steps.filter((s) => s.verdict !== "allow");
   target.append(el("p", {}, badge(blocked.length ? "deny" : "allow"),
-    `${out.steps.length} scripted proposals, ${blocked.length} blocked by the gate, ${out.steps.length - blocked.length} ran in the sandbox · task ${out.task_id} · ${out.elapsed_s}s`));
+    `${out.steps.length} scripted proposals: ${blocked.length} BLOCKED by the gate, ${out.steps.length - blocked.length} ALLOWED and CONTAINED in the sandbox · task ${out.task_id} · ${out.elapsed_s}s`));
   if (out.log_note) target.append(el("p", { class: "hint" }, out.log_note));
   for (const s of out.steps) {
     const card = el("div", { class: "card" },
+      containment(s),
       el("div", { class: "step-title" }, el("strong", {}, s.label), " ", badge(s.intent === "legitimate" ? "legitimate" : "injected", s.intent === "legitimate" ? "neutral" : "fail")),
       el("div", { class: "hint" }, `proposal (${s.action.lang}):`), pre(s.action.code),
-      el("p", {}, badge(s.verdict), s.rules_fired.length ? el("strong", {}, s.rules_fired.join(", ")) : "no rule fired",
+      el("p", {}, statusBadge(s), s.rules_fired.length ? el("strong", {}, s.rules_fired.join(", ")) : "no rule fired",
         s.reason ? el("span", {}, " — ", el("code", {}, s.reason)) : null),
       kv([["limits applied", limitsText(s.caps, "none")],
         ["sandbox", s.sandbox_started ? `started (${s.execution?.runtime ?? "?"}), status ${s.status}` : "never started: the gate refused before any container existed"]]));
@@ -139,15 +181,20 @@ function showRefusal(rec) {
     ...(rec.receipt_ids ?? []).slice(0, 1).map((id) => el("p", { class: "hint" }, "receipts from that run start at ", el("code", {}, id.slice(0, 16) + "…"))));
 }
 
-$("#replay-run").addEventListener("click", async () => {
+async function runReplay() {
   const b = $("#replay-run");
   const target = $("#out-replay");
   b.disabled = true;
   target.replaceChildren(el("p", { class: "spinner" }, "replaying: every proposal goes through the real gate"));
-  try { renderReplay(await api("/api/task", { kind: "injected", mode: "replay_compromised" }), target); }
-  catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); }
+  try {
+    const out = await api("/api/task", { kind: "injected", mode: "replay_compromised" });
+    renderReplay(out, target);
+    showBeforeAfter(out);
+    return out;
+  } catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); throw e; }
   finally { b.disabled = false; refreshMeta(); }
-});
+}
+$("#replay-run").addEventListener("click", () => runReplay().catch(() => {}));
 
 function renderTask(out, target) {
   target.replaceChildren();
@@ -168,8 +215,8 @@ function renderTask(out, target) {
 function headlineText(o) {
   const blk = `${o.blocked} of ${o.proposed} proposed action${o.proposed === 1 ? "" : "s"} blocked by the gate`;
   switch (o.state) {
-    case "completed": return ["completed", "allow", `— ${blk}`];
-    case "all_blocked": return ["all blocked", "deny", `— all ${o.proposed} proposed action${o.proposed === 1 ? " was" : "s were"} blocked by the gate; nothing ran`];
+    case "completed": return ["completed", "neutral", `— ${blk}`];
+    case "all_blocked": return ["all BLOCKED", "deny", `— all ${o.proposed} proposed action${o.proposed === 1 ? " was" : "s were"} blocked by the gate; nothing ran`];
     case "no_actions": return ["no actions", "neutral", "— the model answered without proposing any code"];
     default: return ["failed", "fail", `— the task did not finish (${blk}, ${o.ran_ok} ran successfully)`];
   }
@@ -208,21 +255,65 @@ function startProgress(target) {
 }
 
 // ---------- tasks
-for (const b of document.querySelectorAll("button.run")) {
-  b.addEventListener("click", async () => {
-    const target = $(`#out-${b.dataset.kind}`);
-    b.disabled = true;
-    const prog = startProgress(target);
-    try {
-      const out = await api("/api/task", { kind: b.dataset.kind, progress_id: prog.pid });
-      prog.stop();
-      renderTask(out, target);
-      if (b.dataset.kind === "injected") showRefusal((await api("/api/last_injected_run")).record);
-    }
-    catch (e) { prog.stop(); target.replaceChildren(el("p", { class: "err" }, e.message)); }
-    finally { b.disabled = false; refreshMeta(); }
-  });
+async function runTask(b) {
+  const target = $(`#out-${b.dataset.kind}`);
+  b.disabled = true;
+  const prog = startProgress(target);
+  try {
+    const out = await api("/api/task", { kind: b.dataset.kind, progress_id: prog.pid });
+    prog.stop();
+    renderTask(out, target);
+    if (b.dataset.kind === "injected") showRefusal((await api("/api/last_injected_run")).record);
+    return out;
+  }
+  catch (e) { prog.stop(); target.replaceChildren(el("p", { class: "err" }, e.message)); throw e; }
+  finally { b.disabled = false; refreshMeta(); }
 }
+for (const b of document.querySelectorAll("button.run")) b.addEventListener("click", () => runTask(b).catch(() => {}));
+
+// ---------- hero: step strip and the guided demo
+function openFromHash() {
+  const d = location.hash && document.querySelector(`details${location.hash}`);
+  if (d) d.open = true;
+}
+window.addEventListener("hashchange", openFromHash);
+openFromHash();
+for (const a of document.querySelectorAll("[data-goto]")) {
+  a.addEventListener("click", (e) => { e.preventDefault(); showTab(a.dataset.goto); document.querySelector("nav").scrollIntoView({ behavior: "smooth" }); });
+}
+// Before/after for the first blocked step of a real replay response. Filled only from API data.
+function showBeforeAfter(rep) {
+  const s = rep?.steps?.find((x) => x.verdict !== "allow");
+  if (!s) return;
+  const code = s.action?.code ?? s.code ?? "";
+  $("#ba-code").textContent = code.split("\n").slice(0, 4).join("\n");
+  $("#ba-rule").textContent = `BLOCKED ${(s.rules_fired ?? []).map((r) => r.code ?? r).join(", ")}`;
+  $("#ba-code").classList.remove("ba-placeholder");
+  $("#ba-ran").textContent = neverStarted(s) ? "Nothing." : "";
+  $("#ba-why").textContent = neverStarted(s) ? "The sandbox never started for this step. Signed receipt " + String(s.receipt_id).slice(0, 8) + "…" : "Blocked by the gate.";
+  $("#beforeafter").dataset.state = "filled";
+}
+$("#demo-run").addEventListener("click", async () => {
+  const b = $("#demo-run");
+  const st = $("#demo-status");
+  b.disabled = true;
+  const say = (t) => { st.textContent = t; };
+  try {
+    say("Step 1 of 3: replaying a compromised agent through the real gate (scripted proposals).");
+    showTab("injected");
+    const rep = await runReplay();
+    say("Step 2 of 3: submitting print(1+1) in the Arena, to show safe code still runs.");
+    showTab("arena");
+    $("#lang").value = "python"; $("#code").value = "print(1+1)"; $("#input-text").value = ""; sizeHint();
+    await runArena();
+    await new Promise((r) => setTimeout(r, 1200));
+    const blocked = rep.steps.find((x) => x.verdict !== "allow" && x.receipt_id);
+    say("Step 3 of 3: verifying a blocked action's signed receipt in this browser, then tampering one character.");
+    if (blocked) { await loadReceipt(blocked.receipt_id); await new Promise((r) => setTimeout(r, 1500)); await loadReceipt(blocked.receipt_id, true); }
+    say("Demo done. Live API data throughout. The verifier now shows the tampered copy failing; “Restore original” brings back the valid one.");
+  } catch (e) { say(`Demo stopped: ${e.message}. The tab shows what happened.`); }
+  finally { b.disabled = false; }
+});
 
 // ---------- arena
 const EXAMPLES = [
@@ -255,7 +346,7 @@ function showStats(s) {
 }
 async function refreshStats() { try { showStats(await api("/api/arena/stats")); } catch {} }
 
-$("#arena-run").addEventListener("click", async () => {
+async function runArena() {
   const b = $("#arena-run");
   const target = $("#out-arena");
   b.disabled = true;
@@ -266,11 +357,14 @@ $("#arena-run").addEventListener("click", async () => {
     const step = await api("/api/arena", body);
     target.replaceChildren(renderStep(step));
     showStats(step.stats);
+    return step;
   } catch (e) {
     target.replaceChildren(el("p", { class: "err" }, e.message));
     refreshStats();
+    throw e;
   } finally { b.disabled = false; refreshMeta(); }
-});
+}
+$("#arena-run").addEventListener("click", () => runArena().catch(() => {}));
 
 // ---------- verify
 async function loadReceipt(id, tamper = false, cue = true) {
@@ -301,7 +395,8 @@ async function runVerify() {
   const out = $("#out-verify");
   const text = $("#rtext").value;
   const res = await verifyReceipt(text, $("#pub").value.trim());
-  const card = el("div", { class: "card" }, el("p", {}, badge(res.ok ? "pass" : "fail"), res.ok ? "receipt is authentic and unmodified" : "receipt does NOT verify"));
+  const card = el("div", { class: "card" }, el("p", {}, badge(res.ok ? "VERIFIED" : "NOT VERIFIED", res.ok ? "pass" : "fail"), res.ok ? "signature and hash chain check out" : "receipt does NOT verify"),
+    el("p", { class: "hint" }, "VERIFIED proves the record is intact and signed by this server's key. It does not prove the execution was safe."));
   for (const c of res.checks) {
     card.append(el("div", { class: "check" }, badge(c.ok ? "pass" : "fail"), el("strong", {}, c.id), ` ${c.detail}`, c.path ? el("span", {}, " at ", el("code", {}, c.path)) : null));
   }
