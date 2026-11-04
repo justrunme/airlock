@@ -577,8 +577,13 @@ def test_replay_explains_the_extra_warn_line(make):
 def test_hero_promise_steps_and_collapsed_facts(make):
     html = make()[0].get("/").text
     assert "Don't trust the agent. Verify what it actually did." in html
-    for tab in ("real", "injected", "verify"):
+    assert "told it to run" in html and "Demo in 3 steps" in html and 'id="beforeafter"' in html
+    for tab in ("injected", "arena", "verify"):
         assert f'data-goto="{tab}"' in html and f'id="tab-{tab}"' in html
+    # the replay is the default view; the live-model task is one click away
+    assert '<section id="tab-injected" class="tab">' in html
+    assert 'data-tab="injected" aria-selected="true"' in html
+    assert "signing key lives on this VM" in html
     assert "What I guarantee:" in html and "What I do not:" in html
     assert 'id="demo-run"' in html
     # limitations and corpus numbers stay on the page, collapsed, with honest wording
