@@ -117,12 +117,13 @@
   <p class="statuses"><span class="badge deny">BLOCKED</span> the gate denied it before anything ran
   · <span class="badge allow">ALLOWED</span> it passed the gate
   · <span class="badge contained">CONTAINED</span> allowed code ran in the restricted sandbox (runsc, no network, limits)
-  · <span class="badge pass">VERIFIED</span> the receipt's signature and hash chain check out.
+  · <span class="badge pass">VERIFIED</span> the receipt's signature and receipt hash check out.
   VERIFIED proves the record is intact and signed, not that the execution was safe.</p>
   <p class="guarantee"><strong>What I guarantee:</strong> every action the agent proposes is checked
   by the policy before anything runs, denied code never reaches a container, and every decision
-  gets a signed, hash-chained receipt. You can check it here in your browser or offline with the
-  published key and <code>tests/js/verify_cli.mjs</code> from the repository.
+  gets a signed, hash-chained receipt. You can check a receipt's signature and hash here in your browser or offline with the
+  published key and <code>tests/js/verify_cli.mjs</code> from the repository; chain linkage is
+  checked by the offline CLI (<code>airlock verify-chain</code>).
   <strong>What I do not:</strong> that the policy catches every attack, or that the host itself
   is honest. The receipt proves what was recorded, not that the machine was uncompromised.
   <a href="#limits">Known limitations</a>.</p>
@@ -202,7 +203,8 @@
   <p>Verification runs here, with WebCrypto Ed25519 and SHA-256 and an RFC&nbsp;8785 canonicaliser
   in <a href="/static/verify.js">verify.js</a> (no dependencies). Nothing is sent to the server.
   Steps: strict JSON (duplicate keys rejected) &rarr; schema &rarr; SHA-256 of the canonical body
-  &rarr; Ed25519 signature.</p>
+  &rarr; Ed25519 signature. Chain linkage is checked by the offline CLI
+  (<code>airlock verify-chain</code>).</p>
   <div class="row">
     <label>receipt id <input id="rid" size="70" placeholder="64 hex characters"></label>
     <button id="fetch-r">Load from server</button>

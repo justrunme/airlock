@@ -694,3 +694,17 @@ def test_share_metadata_points_at_the_static_image(make):
     assert 'content="https://45-77-141-253.sslip.io/static/og.png"' in html
     r = client.get("/static/og.png")
     assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_browser_verifier_does_not_claim_the_chain():
+    from pathlib import Path
+
+    static = Path("airlock/web/static")
+    js = (static / "verify.js").read_text()
+    assert "prev_hash !==" in js and "verifyChain" not in js  # format check only, no linkage
+    for name in ("index.html", "app.js"):
+        text = (static / name).read_text()
+        assert "hash chain check" not in text, name
+        assert "signature and receipt hash check out" in text, name
+    html = (static / "index.html").read_text()
+    assert "Chain linkage is checked by the offline CLI" in html

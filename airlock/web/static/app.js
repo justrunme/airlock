@@ -19,7 +19,7 @@ const kv = (pairs) =>
 // BLOCKED   the policy gate denied the action before anything ran
 // ALLOWED   the action passed the gate (no sandbox result yet, or it did not run)
 // CONTAINED allowed code ran inside the restricted sandbox (runsc, no network, limits)
-// VERIFIED  a receipt's signature and hash chain check out (used only in the verifier)
+// VERIFIED  a receipt's signature and receipt hash check out (used only in the verifier)
 function statusWord(step) {
   if (!step?.verdict) return ["ERROR", "fail"];
   if (step.verdict !== "allow") return ["BLOCKED", "deny"];
@@ -320,7 +320,7 @@ async function heroVerify(step) {
   const bad = await verifyReceipt(JSON.stringify(t), PUBKEY);
   const failed = bad.checks.filter((c) => !c.ok).map((c) => c.id);
   $("#ev-valid").className = `vmini ${good.ok ? "ok" : "bad"}`;
-  $("#ev-valid").replaceChildren(el("span", { class: "vm-k" }, "signature and hash chain check out"),
+  $("#ev-valid").replaceChildren(el("span", { class: "vm-k" }, "signature and receipt hash check out"),
     el("strong", {}, good.ok ? "VERIFIED" : "NOT VERIFIED"),
     el("span", { class: "hint" }, `receipt ${step.receipt_id.slice(0, 12)}…, checked in this browser with the published key`));
   $("#ev-invalid").className = `vmini ${bad.ok ? "ok" : "bad"}`;
