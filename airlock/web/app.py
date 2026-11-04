@@ -200,11 +200,24 @@ def create_app(
     @app.get("/api/policy")
     def get_policy():
         flags = None
+        process_limits = None
         try:
             probe = ActionRequest(id="policy", task_id="policy", tool="run_code", lang="bash")
             cmd = pipeline.runner._build_docker_create_command(probe, ARENA_CAPS, "airlock-<id>")
             flags = cmd[: cmd.index("python3")] + ["python3", "-c", "<bootstrap>"]
             runtime = pipeline.runner.runtime
+            process_limits = {
+                "arena": pipeline.runner.process_limits(ARENA_CAPS),
+                "task": pipeline.runner.process_limits(tasks.TASK_CAPS),
+                "note": (
+                    "job_nproc is RLIMIT_NPROC for the job uid, the job-facing process cap "
+                    "and the pids value in the signed caps. cgroup_pids_headroom is docker "
+                    "--pids-limit: equal to job_nproc under runc, larger under runsc because "
+                    "there it counts sandbox kernel threads. Under runsc a fork-heavy job "
+                    "usually hits the memory cap (OOM kill) before RLIMIT_NPROC. "
+                    "policy.max_pids is only the ceiling for a requested pids cap."
+                ),
+            }
         except Exception:
             runtime = None
         return {
@@ -214,6 +227,7 @@ def create_app(
             "task_caps": tasks.TASK_CAPS,
             "runtime": runtime,
             "docker_create": flags,
+            "process_limits": process_limits,
             "size_limits": {
                 "body_bytes": MAX_BODY,
                 "code_bytes": MAX_CODE,

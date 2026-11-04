@@ -52,6 +52,19 @@ class TestSandboxUnit:
         assert ARENA_CAPS["pids"] == 32
         assert cmd[-1] == "32"  # RLIMIT_NPROC handed to the bootstrap
 
+    @pytest.mark.parametrize("runtime", ["runc", "runsc"])
+    def test_process_limits_match_docker_create(self, runtime):
+        """Review 5 M1: the published job_nproc / cgroup headroom are what docker gets."""
+        from airlock.web.app import ARENA_CAPS
+
+        runner = SandboxRunner(runtime=runtime)
+        action = ActionRequest(id="p", task_id="t", tool="run_code", lang="bash", code="true")
+        cmd = runner._build_docker_create_command(action, dict(ARENA_CAPS), "airlock-x")
+        limits = runner.process_limits(ARENA_CAPS)
+        assert limits["job_nproc"] == 32 and cmd[-1] == "32"
+        assert cmd[cmd.index("--pids-limit") + 1] == str(limits["cgroup_pids_headroom"])
+        assert limits["cgroup_pids_headroom"] == (32 if runtime == "runc" else 512)
+
     def get_docker_commands(self):
         """Get logged docker commands."""
         if not self.docker_log.exists():
@@ -115,13 +128,13 @@ class TestSandboxUnit:
         assert "--read-only" in create_cmd
         assert "--cap-drop ALL" in create_cmd
         assert "--security-opt no-new-privileges" in create_cmd
-        # Bootstrap starts as root with only SETUID/SETGID and drops the job
-        # to 65534 (see bootstrap.py); every other capability is dropped.
+        # Bootstrap starts as root with only SETUID/SETGID/SETPCAP, empties
+        # the job's bounding set and drops it to 65534 (see bootstrap.py).
         assert "--user 0:0" in create_cmd
         assert "--cap-add SETUID" in create_cmd
         assert "--cap-add SETGID" in create_cmd
         cap_adds = create_cmd.split("--cap-add ")[1:]
-        assert sorted(c.split()[0] for c in cap_adds) == ["SETGID", "SETUID"]
+        assert sorted(c.split()[0] for c in cap_adds) == ["SETGID", "SETPCAP", "SETUID"]
         # runsc: cgroup pids gets headroom for the sandbox kernel's threads;
         # the job itself is capped by RLIMIT_NPROC=128 (bootstrap argv[1]).
         assert "--pids-limit 512" in create_cmd

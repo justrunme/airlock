@@ -266,6 +266,17 @@ SPECS: dict[str, Spec] = {
 }
 NO_FILE_BINARIES = {"echo", "printf", "tr", "true", "false", ":", "test", "["}
 SAFE_BINARIES = set(SPECS) | NO_FILE_BINARIES
+# test/[ operators. Every other operand of test is treated as a path and must
+# pass the same allow-list as a file argument, because -e/-r/-nt and friends
+# probe the file system.
+TEST_OPERATORS = {
+    "!", "(", ")", "-a", "-o", "=", "==", "!=", "<", ">",
+    "-eq", "-ne", "-lt", "-le", "-gt", "-ge", "-nt", "-ot", "-ef",
+    "-b", "-c", "-d", "-e", "-f", "-g", "-G", "-h", "-k", "-L", "-N", "-O",
+    "-p", "-r", "-s", "-S", "-t", "-u", "-w", "-x", "-z", "-n", "-v", "-R",
+    "]",
+}  # fmt: skip
+GLOB_CHARS = re.compile(r"[*?\[]")
 
 
 class ShellChecker:
@@ -433,6 +444,9 @@ class ShellChecker:
             self.flag("awk command pipe", "R-AWK-GETLINE")
         if re.search(r"\bgetline\b", stripped):
             self.flag("awk getline", "R-AWK-GETLINE")
+        if re.search(r"\b(?:ARGV|ARGC)\b", stripped):
+            # Rewriting ARGV makes awk open files the path check never saw.
+            self.flag("awk ARGV/ARGC access", "R-AWK-ARGV")
         if re.search(r"\b(?:ENVIRON|PROCINFO)\b", stripped) or "@" in stripped:
             self.flag("awk environment or extension access", "R-AWK-ENV")
         for m in re.finditer(r"\b(?:print|printf)\b", stripped):
@@ -511,7 +525,16 @@ class ShellChecker:
             self.flag(f"binary {binary} is not allow-listed", "R-SHELL-BIN-UNKNOWN")
             return False
         if binary in NO_FILE_BINARIES:
-            return True
+            if binary in ("test", "["):
+                operands = [a for a in args if a not in TEST_OPERATORS and a != ""]
+            else:
+                # The lexer drops quoting, so any glob character counts as a
+                # pathname expansion that could list a directory outside /work.
+                operands = [a for a in args if GLOB_CHARS.search(a)]
+            before = len(self.result["forbidden"])
+            for a in operands:
+                self.check_input(a)
+            return len(self.result["forbidden"]) == before
 
         spec = SPECS[binary]
         if binary == "jq":
@@ -544,6 +567,8 @@ class ShellChecker:
             programs = [positional.pop(0)]
 
         if binary in AWK_BINARIES:
+            if any(re.match(r"^(?:ARGV|ARGC)\b", a) for a in args):
+                self.flag("awk ARGV/ARGC assignment", "R-AWK-ARGV")
             positional = [p for p in positional if not re.match(r"^[A-Za-z_]\w*=", p)]
             for p in programs:
                 self.check_awk(p)

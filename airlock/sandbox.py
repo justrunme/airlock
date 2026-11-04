@@ -442,6 +442,21 @@ class SandboxRunner:
             artifacts.append(Artifact(name=rel, sha256=sha256(content).hexdigest()))
         return artifacts, dropped
 
+    def process_limits(self, caps: dict[str, Any]) -> dict[str, int]:
+        """The two process numbers a run gets from ``caps["pids"]``.
+
+        ``job_nproc`` is RLIMIT_NPROC for the job uid, set by the bootstrap. It
+        is the job-facing cap under both runtimes and exactly the value in the
+        signed decision caps. ``cgroup_pids_headroom`` is docker --pids-limit.
+        Under runc it equals job_nproc. Under gVisor the cgroup counts the
+        sandbox kernel's own host threads, not job processes, and hitting it
+        kills the whole sandbox with exit 2 and no output, so runsc gets
+        headroom and the job meets RLIMIT_NPROC (or the memory cap) first.
+        """
+        job_nproc = int(caps.get("pids", 64))
+        headroom = job_nproc if self.runtime == "runc" else max(4 * job_nproc, 512)
+        return {"job_nproc": job_nproc, "cgroup_pids_headroom": headroom}
+
     def _build_docker_create_command(
         self,
         action: ActionRequest,
@@ -449,15 +464,9 @@ class SandboxRunner:
         container_name: str,
     ) -> list[str]:
         """Build Docker create command."""
-        # RLIMIT_NPROC for the job uid, applied by the bootstrap. This is what
-        # bounds the job's processes under both runtimes. It is exactly the
-        # value in the signed decision caps, so the receipt records what applied.
-        pids_limit = int(caps.get("pids", 64))
-        # The cgroup pids limit counts host tasks. Under gVisor those are the
-        # sandbox kernel's own threads, not job processes, and hitting it kills
-        # the whole sandbox with exit 2 and no output. Give runsc headroom so
-        # the job meets RLIMIT_NPROC (a normal EAGAIN) first.
-        cgroup_pids = pids_limit if self.runtime == "runc" else max(4 * pids_limit, 512)
+        limits = self.process_limits(caps)
+        pids_limit = limits["job_nproc"]
+        cgroup_pids = limits["cgroup_pids_headroom"]
         mem_mb = caps.get("mem_mb", 256)
 
         cmd = [
@@ -473,7 +482,7 @@ class SandboxRunner:
             "/tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777",
             "--tmpfs",
             "/dev/shm:rw,noexec,nosuid,nodev,size=8m,mode=1777",
-            # The fixed bootstrap starts as uid 0 with only SETUID/SETGID, so it
+            # The fixed bootstrap starts as uid 0 with only SETUID/SETGID/SETPCAP, so it
             # can run the job as uid 65534. Different uids keep the job away
             # from the bootstrap's /proc entries, memory and report channel.
             "--user",
@@ -484,6 +493,9 @@ class SandboxRunner:
             "SETUID",
             "--cap-add",
             "SETGID",
+            # only so the job child can empty its bounding set before setuid
+            "--cap-add",
+            "SETPCAP",
             "--security-opt",
             "no-new-privileges",
             "--pids-limit",

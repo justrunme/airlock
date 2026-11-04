@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **702** in 16 files.
+Total collected tests: **1295** in 19 files.
 
 | File | Tests |
 |------|------:|
@@ -17,15 +17,18 @@ Total collected tests: **702** in 16 files.
 | `tests/test_policy.py` | 12 |
 | `tests/test_policy_corpus.py` | 50 |
 | `tests/test_policy_corpus_expanded.py` | 145 |
+| `tests/test_policy_corpus_independent.py` | 478 |
 | `tests/test_policy_corpus_r4.py` | 265 |
+| `tests/test_policy_review5.py` | 64 |
 | `tests/test_receipt.py` | 7 |
-| `tests/test_receipt_strict.py` | 32 |
-| `tests/test_sandbox.py` | 23 |
-| `tests/test_sandbox_unit.py` | 35 |
+| `tests/test_receipt_strict.py` | 35 |
+| `tests/test_sandbox.py` | 25 |
+| `tests/test_sandbox_unit.py` | 37 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
-| `tests/test_web_api.py` | 66 |
-| `tests/test_web_js_crosscheck.py` | 11 |
+| `tests/test_web_api.py` | 67 |
+| `tests/test_web_copy.py` | 3 |
+| `tests/test_web_js_crosscheck.py` | 51 |
 
 ## `tests/test_agent.py`
 
@@ -286,6 +289,489 @@ Total collected tests: **702** in 16 files.
 | `TestPolicyCorpusExpanded::test_benign[benign51-python-code50-allow-Safe pattern]` | Test benign cases. |
 | `TestPolicyCorpusExpanded::test_benign[benign52-python-import io\nwith io.open('/work/out/summary.txt', 'w', encoding='utf-8') as f:\n    f.write('ok')-allow-Safe pattern]` | Test benign cases. |
 | `TestPolicyCorpusExpanded::test_benign[benign53-bash-sed -n 's/.*status=\\([0-9]*\\).*/\\1/p' /work/input/app.log \| sort \| uniq -c-allow-Safe pattern]` | Test benign cases. |
+
+## `tests/test_policy_corpus_independent.py`
+
+| Test | Description |
+|------|-------------|
+| `test_corpus_shape` |  |
+| `test_independent_row[1]` |  |
+| `test_independent_row[2]` |  |
+| `test_independent_row[3]` |  |
+| `test_independent_row[4]` |  |
+| `test_independent_row[5]` |  |
+| `test_independent_row[6]` |  |
+| `test_independent_row[7]` |  |
+| `test_independent_row[8]` |  |
+| `test_independent_row[9]` |  |
+| `test_independent_row[10]` |  |
+| `test_independent_row[11]` |  |
+| `test_independent_row[12]` |  |
+| `test_independent_row[13]` |  |
+| `test_independent_row[14]` |  |
+| `test_independent_row[15]` |  |
+| `test_independent_row[16]` |  |
+| `test_independent_row[17]` |  |
+| `test_independent_row[18]` |  |
+| `test_independent_row[19]` |  |
+| `test_independent_row[20]` |  |
+| `test_independent_row[21]` |  |
+| `test_independent_row[22]` |  |
+| `test_independent_row[23]` |  |
+| `test_independent_row[24]` |  |
+| `test_independent_row[25]` |  |
+| `test_independent_row[26]` |  |
+| `test_independent_row[27]` |  |
+| `test_independent_row[28]` |  |
+| `test_independent_row[29]` |  |
+| `test_independent_row[30]` |  |
+| `test_independent_row[31]` |  |
+| `test_independent_row[32]` |  |
+| `test_independent_row[33]` |  |
+| `test_independent_row[34]` |  |
+| `test_independent_row[35]` |  |
+| `test_independent_row[36]` |  |
+| `test_independent_row[37]` |  |
+| `test_independent_row[38]` |  |
+| `test_independent_row[39]` |  |
+| `test_independent_row[40]` |  |
+| `test_independent_row[41]` |  |
+| `test_independent_row[42]` |  |
+| `test_independent_row[43]` |  |
+| `test_independent_row[44]` |  |
+| `test_independent_row[45]` |  |
+| `test_independent_row[46]` |  |
+| `test_independent_row[47]` |  |
+| `test_independent_row[48]` |  |
+| `test_independent_row[49]` |  |
+| `test_independent_row[50]` |  |
+| `test_independent_row[51]` |  |
+| `test_independent_row[52]` |  |
+| `test_independent_row[53]` |  |
+| `test_independent_row[54]` |  |
+| `test_independent_row[55]` |  |
+| `test_independent_row[56]` |  |
+| `test_independent_row[57]` |  |
+| `test_independent_row[58]` |  |
+| `test_independent_row[59]` |  |
+| `test_independent_row[60]` |  |
+| `test_independent_row[61]` |  |
+| `test_independent_row[62]` |  |
+| `test_independent_row[63]` |  |
+| `test_independent_row[64]` |  |
+| `test_independent_row[65]` |  |
+| `test_independent_row[66]` |  |
+| `test_independent_row[67]` |  |
+| `test_independent_row[68]` |  |
+| `test_independent_row[69]` |  |
+| `test_independent_row[70]` |  |
+| `test_independent_row[71]` |  |
+| `test_independent_row[72]` |  |
+| `test_independent_row[73]` |  |
+| `test_independent_row[74]` |  |
+| `test_independent_row[75]` |  |
+| `test_independent_row[76]` |  |
+| `test_independent_row[77]` |  |
+| `test_independent_row[78]` |  |
+| `test_independent_row[79]` |  |
+| `test_independent_row[80]` |  |
+| `test_independent_row[81]` |  |
+| `test_independent_row[82]` |  |
+| `test_independent_row[83]` |  |
+| `test_independent_row[84]` |  |
+| `test_independent_row[85]` |  |
+| `test_independent_row[86]` |  |
+| `test_independent_row[87]` |  |
+| `test_independent_row[88]` |  |
+| `test_independent_row[89]` |  |
+| `test_independent_row[90]` |  |
+| `test_independent_row[91]` |  |
+| `test_independent_row[92]` |  |
+| `test_independent_row[93]` |  |
+| `test_independent_row[94]` |  |
+| `test_independent_row[95]` |  |
+| `test_independent_row[96]` |  |
+| `test_independent_row[97]` |  |
+| `test_independent_row[98]` |  |
+| `test_independent_row[99]` |  |
+| `test_independent_row[100]` |  |
+| `test_independent_row[101]` |  |
+| `test_independent_row[102]` |  |
+| `test_independent_row[103]` |  |
+| `test_independent_row[104]` |  |
+| `test_independent_row[105]` |  |
+| `test_independent_row[106]` |  |
+| `test_independent_row[107]` |  |
+| `test_independent_row[108]` |  |
+| `test_independent_row[109]` |  |
+| `test_independent_row[110]` |  |
+| `test_independent_row[111]` |  |
+| `test_independent_row[112]` |  |
+| `test_independent_row[113]` |  |
+| `test_independent_row[114]` |  |
+| `test_independent_row[115]` |  |
+| `test_independent_row[116]` |  |
+| `test_independent_row[117]` |  |
+| `test_independent_row[118]` |  |
+| `test_independent_row[119]` |  |
+| `test_independent_row[120]` |  |
+| `test_independent_row[121]` |  |
+| `test_independent_row[122]` |  |
+| `test_independent_row[123]` |  |
+| `test_independent_row[124]` |  |
+| `test_independent_row[125]` |  |
+| `test_independent_row[126]` |  |
+| `test_independent_row[127]` |  |
+| `test_independent_row[128]` |  |
+| `test_independent_row[129]` |  |
+| `test_independent_row[130]` |  |
+| `test_independent_row[131]` |  |
+| `test_independent_row[132]` |  |
+| `test_independent_row[133]` |  |
+| `test_independent_row[134]` |  |
+| `test_independent_row[135]` |  |
+| `test_independent_row[136]` |  |
+| `test_independent_row[137]` |  |
+| `test_independent_row[138]` |  |
+| `test_independent_row[139]` |  |
+| `test_independent_row[140]` |  |
+| `test_independent_row[141]` |  |
+| `test_independent_row[142]` |  |
+| `test_independent_row[143]` |  |
+| `test_independent_row[144]` |  |
+| `test_independent_row[145]` |  |
+| `test_independent_row[146]` |  |
+| `test_independent_row[147]` |  |
+| `test_independent_row[148]` |  |
+| `test_independent_row[149]` |  |
+| `test_independent_row[150]` |  |
+| `test_independent_row[151]` |  |
+| `test_independent_row[152]` |  |
+| `test_independent_row[153]` |  |
+| `test_independent_row[154]` |  |
+| `test_independent_row[155]` |  |
+| `test_independent_row[156]` |  |
+| `test_independent_row[157]` |  |
+| `test_independent_row[158]` |  |
+| `test_independent_row[159]` |  |
+| `test_independent_row[160]` |  |
+| `test_independent_row[161]` |  |
+| `test_independent_row[162]` |  |
+| `test_independent_row[163]` |  |
+| `test_independent_row[164]` |  |
+| `test_independent_row[165]` |  |
+| `test_independent_row[166]` |  |
+| `test_independent_row[167]` |  |
+| `test_independent_row[168]` |  |
+| `test_independent_row[169]` |  |
+| `test_independent_row[170]` |  |
+| `test_independent_row[171]` |  |
+| `test_independent_row[172]` |  |
+| `test_independent_row[173]` |  |
+| `test_independent_row[174]` |  |
+| `test_independent_row[175]` |  |
+| `test_independent_row[176]` |  |
+| `test_independent_row[177]` |  |
+| `test_independent_row[178]` |  |
+| `test_independent_row[179]` |  |
+| `test_independent_row[180]` |  |
+| `test_independent_row[181]` |  |
+| `test_independent_row[182]` |  |
+| `test_independent_row[183]` |  |
+| `test_independent_row[184]` |  |
+| `test_independent_row[185]` |  |
+| `test_independent_row[186]` |  |
+| `test_independent_row[187]` |  |
+| `test_independent_row[188]` |  |
+| `test_independent_row[189]` |  |
+| `test_independent_row[190]` |  |
+| `test_independent_row[191]` |  |
+| `test_independent_row[192]` |  |
+| `test_independent_row[193]` |  |
+| `test_independent_row[194]` |  |
+| `test_independent_row[195]` |  |
+| `test_independent_row[196]` |  |
+| `test_independent_row[197]` |  |
+| `test_independent_row[198]` |  |
+| `test_independent_row[199]` |  |
+| `test_independent_row[200]` |  |
+| `test_independent_row[201]` |  |
+| `test_independent_row[202]` |  |
+| `test_independent_row[203]` |  |
+| `test_independent_row[204]` |  |
+| `test_independent_row[205]` |  |
+| `test_independent_row[206]` |  |
+| `test_independent_row[207]` |  |
+| `test_independent_row[208]` |  |
+| `test_independent_row[209]` |  |
+| `test_independent_row[210]` |  |
+| `test_independent_row[211]` |  |
+| `test_independent_row[212]` |  |
+| `test_independent_row[213]` |  |
+| `test_independent_row[214]` |  |
+| `test_independent_row[215]` |  |
+| `test_independent_row[216]` |  |
+| `test_independent_row[217]` |  |
+| `test_independent_row[218]` |  |
+| `test_independent_row[219]` |  |
+| `test_independent_row[220]` |  |
+| `test_independent_row[221]` |  |
+| `test_independent_row[222]` |  |
+| `test_independent_row[223]` |  |
+| `test_independent_row[224]` |  |
+| `test_independent_row[225]` |  |
+| `test_independent_row[226]` |  |
+| `test_independent_row[227]` |  |
+| `test_independent_row[228]` |  |
+| `test_independent_row[229]` |  |
+| `test_independent_row[230]` |  |
+| `test_independent_row[231]` |  |
+| `test_independent_row[232]` |  |
+| `test_independent_row[233]` |  |
+| `test_independent_row[234]` |  |
+| `test_independent_row[235]` |  |
+| `test_independent_row[236]` |  |
+| `test_independent_row[237]` |  |
+| `test_independent_row[238]` |  |
+| `test_independent_row[239]` |  |
+| `test_independent_row[240]` |  |
+| `test_independent_row[241]` |  |
+| `test_independent_row[242]` |  |
+| `test_independent_row[243]` |  |
+| `test_independent_row[244]` |  |
+| `test_independent_row[245]` |  |
+| `test_independent_row[246]` |  |
+| `test_independent_row[247]` |  |
+| `test_independent_row[248]` |  |
+| `test_independent_row[249]` |  |
+| `test_independent_row[250]` |  |
+| `test_independent_row[251]` |  |
+| `test_independent_row[252]` |  |
+| `test_independent_row[253]` |  |
+| `test_independent_row[254]` |  |
+| `test_independent_row[255]` |  |
+| `test_independent_row[256]` |  |
+| `test_independent_row[257]` |  |
+| `test_independent_row[258]` |  |
+| `test_independent_row[259]` |  |
+| `test_independent_row[260]` |  |
+| `test_independent_row[261]` |  |
+| `test_independent_row[262]` |  |
+| `test_independent_row[263]` |  |
+| `test_independent_row[264]` |  |
+| `test_independent_row[265]` |  |
+| `test_independent_row[266]` |  |
+| `test_independent_row[267]` |  |
+| `test_independent_row[268]` |  |
+| `test_independent_row[269]` |  |
+| `test_independent_row[270]` |  |
+| `test_independent_row[271]` |  |
+| `test_independent_row[272]` |  |
+| `test_independent_row[273]` |  |
+| `test_independent_row[274]` |  |
+| `test_independent_row[275]` |  |
+| `test_independent_row[276]` |  |
+| `test_independent_row[277]` |  |
+| `test_independent_row[278]` |  |
+| `test_independent_row[279]` |  |
+| `test_independent_row[280]` |  |
+| `test_independent_row[281]` |  |
+| `test_independent_row[282]` |  |
+| `test_independent_row[283]` |  |
+| `test_independent_row[284]` |  |
+| `test_independent_row[285]` |  |
+| `test_independent_row[286]` |  |
+| `test_independent_row[287]` |  |
+| `test_independent_row[288]` |  |
+| `test_independent_row[289]` |  |
+| `test_independent_row[290]` |  |
+| `test_independent_row[291]` |  |
+| `test_independent_row[292]` |  |
+| `test_independent_row[293]` |  |
+| `test_independent_row[294]` |  |
+| `test_independent_row[295]` |  |
+| `test_independent_row[296]` |  |
+| `test_independent_row[297]` |  |
+| `test_independent_row[298]` |  |
+| `test_independent_row[299]` |  |
+| `test_independent_row[300]` |  |
+| `test_independent_row[301]` |  |
+| `test_independent_row[302]` |  |
+| `test_independent_row[303]` |  |
+| `test_independent_row[304]` |  |
+| `test_independent_row[305]` |  |
+| `test_independent_row[306]` |  |
+| `test_independent_row[307]` |  |
+| `test_independent_row[308]` |  |
+| `test_independent_row[309]` |  |
+| `test_independent_row[310]` |  |
+| `test_independent_row[311]` |  |
+| `test_independent_row[312]` |  |
+| `test_independent_row[313]` |  |
+| `test_independent_row[314]` |  |
+| `test_independent_row[315]` |  |
+| `test_independent_row[316]` |  |
+| `test_independent_row[317]` |  |
+| `test_independent_row[318]` |  |
+| `test_independent_row[319]` |  |
+| `test_independent_row[320]` |  |
+| `test_independent_row[321]` |  |
+| `test_independent_row[322]` |  |
+| `test_independent_row[323]` |  |
+| `test_independent_row[324]` |  |
+| `test_independent_row[325]` |  |
+| `test_independent_row[326]` |  |
+| `test_independent_row[327]` |  |
+| `test_independent_row[328]` |  |
+| `test_independent_row[329]` |  |
+| `test_independent_row[330]` |  |
+| `test_independent_row[331]` |  |
+| `test_independent_row[332]` |  |
+| `test_independent_row[333]` |  |
+| `test_independent_row[334]` |  |
+| `test_independent_row[335]` |  |
+| `test_independent_row[336]` |  |
+| `test_independent_row[337]` |  |
+| `test_independent_row[338]` |  |
+| `test_independent_row[339]` |  |
+| `test_independent_row[340]` |  |
+| `test_independent_row[341]` |  |
+| `test_independent_row[342]` |  |
+| `test_independent_row[343]` |  |
+| `test_independent_row[344]` |  |
+| `test_independent_row[345]` |  |
+| `test_independent_row[346]` |  |
+| `test_independent_row[347]` |  |
+| `test_independent_row[348]` |  |
+| `test_independent_row[349]` |  |
+| `test_independent_row[350]` |  |
+| `test_independent_row[351]` |  |
+| `test_independent_row[352]` |  |
+| `test_independent_row[353]` |  |
+| `test_independent_row[354]` |  |
+| `test_independent_row[355]` |  |
+| `test_independent_row[356]` |  |
+| `test_independent_row[357]` |  |
+| `test_independent_row[358]` |  |
+| `test_independent_row[359]` |  |
+| `test_independent_row[360]` |  |
+| `test_independent_row[361]` |  |
+| `test_independent_row[362]` |  |
+| `test_independent_row[363]` |  |
+| `test_independent_row[364]` |  |
+| `test_independent_row[365]` |  |
+| `test_independent_row[366]` |  |
+| `test_independent_row[367]` |  |
+| `test_independent_row[368]` |  |
+| `test_independent_row[369]` |  |
+| `test_independent_row[370]` |  |
+| `test_independent_row[371]` |  |
+| `test_independent_row[372]` |  |
+| `test_independent_row[373]` |  |
+| `test_independent_row[374]` |  |
+| `test_independent_row[375]` |  |
+| `test_independent_row[376]` |  |
+| `test_independent_row[377]` |  |
+| `test_independent_row[378]` |  |
+| `test_independent_row[379]` |  |
+| `test_independent_row[380]` |  |
+| `test_independent_row[381]` |  |
+| `test_independent_row[382]` |  |
+| `test_independent_row[383]` |  |
+| `test_independent_row[384]` |  |
+| `test_independent_row[385]` |  |
+| `test_independent_row[386]` |  |
+| `test_independent_row[387]` |  |
+| `test_independent_row[388]` |  |
+| `test_independent_row[389]` |  |
+| `test_independent_row[390]` |  |
+| `test_independent_row[391]` |  |
+| `test_independent_row[392]` |  |
+| `test_independent_row[393]` |  |
+| `test_independent_row[394]` |  |
+| `test_independent_row[395]` |  |
+| `test_independent_row[396]` |  |
+| `test_independent_row[397]` |  |
+| `test_independent_row[398]` |  |
+| `test_independent_row[399]` |  |
+| `test_independent_row[400]` |  |
+| `test_independent_row[401]` |  |
+| `test_independent_row[402]` |  |
+| `test_independent_row[403]` |  |
+| `test_independent_row[404]` |  |
+| `test_independent_row[405]` |  |
+| `test_independent_row[406]` |  |
+| `test_independent_row[407]` |  |
+| `test_independent_row[408]` |  |
+| `test_independent_row[409]` |  |
+| `test_independent_row[410]` |  |
+| `test_independent_row[411]` |  |
+| `test_independent_row[412]` |  |
+| `test_independent_row[413]` |  |
+| `test_independent_row[414]` |  |
+| `test_independent_row[415]` |  |
+| `test_independent_row[416]` |  |
+| `test_independent_row[417]` |  |
+| `test_independent_row[418]` |  |
+| `test_independent_row[419]` |  |
+| `test_independent_row[420]` |  |
+| `test_independent_row[421]` |  |
+| `test_independent_row[422]` |  |
+| `test_independent_row[423]` |  |
+| `test_independent_row[424]` |  |
+| `test_independent_row[425]` |  |
+| `test_independent_row[426]` |  |
+| `test_independent_row[427]` |  |
+| `test_independent_row[428]` |  |
+| `test_independent_row[429]` |  |
+| `test_independent_row[430]` |  |
+| `test_independent_row[431]` |  |
+| `test_independent_row[432]` |  |
+| `test_independent_row[433]` |  |
+| `test_independent_row[434]` |  |
+| `test_independent_row[435]` |  |
+| `test_independent_row[436]` |  |
+| `test_independent_row[437]` |  |
+| `test_independent_row[438]` |  |
+| `test_independent_row[439]` |  |
+| `test_independent_row[440]` |  |
+| `test_independent_row[441]` |  |
+| `test_independent_row[442]` |  |
+| `test_independent_row[443]` |  |
+| `test_independent_row[444]` |  |
+| `test_independent_row[445]` |  |
+| `test_independent_row[446]` |  |
+| `test_independent_row[447]` |  |
+| `test_independent_row[448]` |  |
+| `test_independent_row[449]` |  |
+| `test_independent_row[450]` |  |
+| `test_independent_row[451]` |  |
+| `test_independent_row[452]` |  |
+| `test_independent_row[453]` |  |
+| `test_independent_row[454]` |  |
+| `test_independent_row[455]` |  |
+| `test_independent_row[456]` |  |
+| `test_independent_row[457]` |  |
+| `test_independent_row[458]` |  |
+| `test_independent_row[459]` |  |
+| `test_independent_row[460]` |  |
+| `test_independent_row[461]` |  |
+| `test_independent_row[462]` |  |
+| `test_independent_row[463]` |  |
+| `test_independent_row[464]` |  |
+| `test_independent_row[465]` |  |
+| `test_independent_row[466]` |  |
+| `test_independent_row[467]` |  |
+| `test_independent_row[468]` |  |
+| `test_independent_row[469]` |  |
+| `test_independent_row[470]` |  |
+| `test_independent_row[471]` |  |
+| `test_independent_row[472]` |  |
+| `test_independent_row[473]` |  |
+| `test_independent_row[474]` |  |
+| `test_independent_row[475]` |  |
+| `test_independent_row[476]` |  |
+| `test_independent_row[477]` |  |
 
 ## `tests/test_policy_corpus_r4.py`
 
@@ -557,6 +1043,75 @@ Total collected tests: **702** in 16 files.
 | `test_corpus_case[sreben051]` |  |
 | `test_corpus_size` |  |
 
+## `tests/test_policy_review5.py`
+
+| Test | Description |
+|------|-------------|
+| `test_python_deny[from pathlib import Path\nr = Path("/etc/passwd").read_text\nprint(r())]` |  |
+| `test_python_deny[from pathlib import Path\ng = Path("/work/input").glob\nprint(list(g("../../etc/*")))]` |  |
+| `test_python_deny[from pathlib import Path\nm = getattr(Path("/work/input"), "glob")\nprint(list(m("../../etc/*")))]` |  |
+| `test_python_deny[from pathlib import Path\nf = getattr(Path("/etc/passwd"), "read_bytes")\nprint(f())]` |  |
+| `test_python_deny[from pathlib import Path\nw = Path("/etc/x").write_text\nw("a")]` |  |
+| `test_python_deny[from pathlib import Path\no = Path("/etc/passwd").open\nprint(o().read())]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(map(lambda f: f(), [Path("/etc/passwd").read_text])))]` |  |
+| `test_python_deny[from pathlib import Path\nfor f in Path("/work/input").glob("../../etc/*"):\n print(f)]` |  |
+| `test_python_deny[from pathlib import Path\nfor f in Path("/work/input").glob("../../*"):\n print(f)]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/work/input").glob("../../proc/self/*")))]` |  |
+| `test_python_deny[from pathlib import Path\nfor f in Path("/work/out").glob("../../etc/*"):\n print(f)]` |  |
+| `test_python_deny[from pathlib import Path\nfor f in Path("/work/input").rglob("../../../etc/*"):\n print(f)]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/work/input").glob("**/../../../etc/*")))]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/work/input/x").glob("../../../etc/*")))]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/work/input").glob("[.][.]/[.][.]/etc/*")))]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/work/input").glob(pattern="../../*")))]` |  |
+| `test_python_deny[from pathlib import Path\np = "../../*"\nprint(list(Path("/work/input").glob(p)))]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/work/input").glob("/etc/*")))]` |  |
+| `test_python_deny[import pathlib\nprint(list(pathlib.Path('/work/input').glob('../*')))]` |  |
+| `test_python_deny[from pathlib import Path as Q\nprint(list(Q('/work/input').rglob('../*')))]` |  |
+| `test_python_deny[from pathlib import Path\ndef g(p):\n return list(Path('/work/input').glob(p))\nprint(g('../../*'))]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/work/input").parent.parent.glob("*")))]` |  |
+| `test_python_deny[from pathlib import Path\nq = Path("/work/input").parent\nprint(list(q.iterdir()))]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/work/input").resolve().parents[1].iterdir()))]` |  |
+| `test_python_deny[code24]` |  |
+| `test_python_deny[from pathlib import Path\nprint(Path("/work/input").with_name("..").iterdir())]` |  |
+| `test_python_deny[code26]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/work/input").parent.walk()))]` |  |
+| `test_python_deny[from pathlib import Path\nprint(Path("/work/input").parent.parent.joinpath("etc/shadow").stat())]` |  |
+| `test_python_deny[code29]` |  |
+| `test_python_deny[from pathlib import Path\nprint(list(Path("/etc").walk()))]` |  |
+| `test_python_deny[help()]` |  |
+| `test_shell_deny[test -r /etc/passwd && echo yes]` |  |
+| `test_shell_deny[test -e ../etc]` |  |
+| `test_shell_deny[test -e .. && echo y]` |  |
+| `test_shell_deny[test /work/input/a -nt /etc/passwd]` |  |
+| `test_shell_deny[test -e /et""c/passwd]` |  |
+| `test_shell_deny[test -e /e\\tc/passwd]` |  |
+| `test_shell_deny[test -e ~root]` |  |
+| `test_shell_deny[test -d ~]` |  |
+| `test_shell_deny[echo /etc/*]` |  |
+| `test_shell_deny[echo /e*]` |  |
+| `test_shell_deny[printf '%s\\n' /proc/*]` |  |
+| `test_shell_deny[echo /work/input/../../*]` |  |
+| `test_shell_deny[awk 'BEGIN{ARGV[1]="/etc/passwd"} {print}' /work/input/a.log]` |  |
+| `test_shell_deny[awk 'BEGIN{ARGC=2; ARGV[1]="/etc/passwd"} {print}']` |  |
+| `test_shell_deny[awk '{print}' ARGV=/etc/passwd /work/input/a.log]` |  |
+| `test_shell_deny[printf -v p "%b" "\\x2fetc\\x2fpasswd"; cat $p]` |  |
+| `test_shell_deny[cat $(printf "%b" "\\x2fetc\\x2fpasswd")]` |  |
+| `test_shell_deny[echo /etc/passwd \| xargs cat]` |  |
+| `test_python_allow[from pathlib import Path\nprint(Path("/work/input/a.log").read_text()[:10])]` |  |
+| `test_python_allow[print(getattr(str, "upper")("a"))]` |  |
+| `test_python_allow[from pathlib import Path\nfor f in Path("/work/input").glob("*.log"):\n print(f.read_text()[:10])]` |  |
+| `test_python_allow[from pathlib import Path\nfor f in sorted(Path("/work/input").rglob("**/*.log")):\n print(f)]` |  |
+| `test_python_allow[from pathlib import Path\nprint(list(Path("/work/input").glob("app-[0-9].log")))]` |  |
+| `test_python_allow[from pathlib import Path\nprint(list(Path("/work/input").iterdir()))]` |  |
+| `test_python_allow[from pathlib import Path\nprint(Path("/work/input/app.log").stat().st_size)]` |  |
+| `test_shell_allow[test -e /work/input/app.log && echo ok]` |  |
+| `test_shell_allow[test -n x]` |  |
+| `test_shell_allow[test -f app.log \|\| echo missing]` |  |
+| `test_shell_allow[echo *]` |  |
+| `test_shell_allow[cat /work/input/*.log \| wc -l]` |  |
+| `test_shell_allow[printf "%b" "\\x2fetc\\x2fpasswd"]` |  |
+| `test_shell_allow[echo done > /work/out/x.txt]` |  |
+
 ## `tests/test_receipt.py`
 
 | Test | Description |
@@ -596,6 +1151,9 @@ Total collected tests: **702** in 16 files.
 | `test_equivalent_encodings_still_verify[<lambda>1]` |  |
 | `test_equivalent_encodings_still_verify[<lambda>2]` |  |
 | `test_canonical_bytes_match_signed_digest` |  |
+| `test_load_receipt_requires_a_key` |  |
+| `test_load_receipt_rejects_wrong_hash` |  |
+| `test_load_receipt_rejects_wrong_signature_and_wrong_key` |  |
 | `test_value_change_is_hash_mismatch` |  |
 | `test_sign_rejects_unsafe_int` |  |
 | `test_chain_head_errors[{}-12]` |  |
@@ -615,6 +1173,8 @@ Total collected tests: **702** in 16 files.
 | `TestSandbox::test_s15_rootfs_readonly` | S15: Rootfs read-only. |
 | `TestSandbox::test_s16_runs_as_nobody` | S16: Runs as uid 65534. |
 | `TestSandbox::test_s17_no_capabilities` | S17: CapEff = 0. |
+| `TestSandbox::test_s17c_shell_and_glob_semantics_the_policy_relies_on` | S17c: job.sh runs under a shell without brace expansion, and pathlib |
+| `TestSandbox::test_s17b_bounding_set_is_empty` | S17b: every capability set of the job is empty, bounding set included. |
 | `TestSandbox::test_s18_no_new_privs` | S18: no_new_privs = 1. |
 | `TestSandbox::test_s19_network_none_dns_fails` | S19: Network none - DNS fails. |
 | `TestSandbox::test_s20_network_none_tcp_fails` | S20: Network none - TCP to 1.1.1.1 fails. |
@@ -640,6 +1200,8 @@ Total collected tests: **702** in 16 files.
 |------|-------------|
 | `TestSandboxUnit::test_job_process_limit_is_exactly_the_decision_cap[runc]` | The arena asks for pids=32; the job must get 32, not a silent floor of 64. |
 | `TestSandboxUnit::test_job_process_limit_is_exactly_the_decision_cap[runsc]` | The arena asks for pids=32; the job must get 32, not a silent floor of 64. |
+| `TestSandboxUnit::test_process_limits_match_docker_create[runc]` | Review 5 M1: the published job_nproc / cgroup headroom are what docker gets. |
+| `TestSandboxUnit::test_process_limits_match_docker_create[runsc]` | Review 5 M1: the published job_nproc / cgroup headroom are what docker gets. |
 | `TestSandboxUnit::test_exact_sequence_create_start_inspect_rm` | Test exact docker command sequence. |
 | `TestSandboxUnit::test_docker_create_flags` | Test all flags passed to docker create. |
 | `TestSandboxUnit::test_create_failure_error_verdict` | Test create failure raises error. |
@@ -729,6 +1291,7 @@ Total collected tests: **702** in 16 files.
 | `TestBasics::test_healthz_and_pubkey` |  |
 | `TestBasics::test_signing_key_is_private_and_stable` |  |
 | `TestBasics::test_policy_lists_limits_and_flags` |  |
+| `TestBasics::test_policy_separates_job_nproc_from_cgroup_headroom` |  |
 | `TestBasics::test_ui_served_without_external_resources` |  |
 | `TestTask::test_real_task_runs_and_signs` |  |
 | `TestTask::test_injected_task_blocked_with_reason` |  |
@@ -793,6 +1356,14 @@ Total collected tests: **702** in 16 files.
 | `test_blocked_card_claims_nothing_until_filled` |  |
 | `test_share_metadata_points_at_the_static_image` |  |
 
+## `tests/test_web_copy.py`
+
+| Test | Description |
+|------|-------------|
+| `test_process_cap_is_named_rlimit_nproc` | The job's process cap is RLIMIT_NPROC, not a docker pids count. |
+| `test_no_bare_zero_false_allow_claim` | Every '0 false-ALLOW' must be scoped to a corpus and the independent corpus named. |
+| `test_corpus_table_renders_independent_metrics` | The corpus table must show the independent corpus from metrics.json. |
+
 ## `tests/test_web_js_crosscheck.py`
 
 | Test | Description |
@@ -808,3 +1379,43 @@ Total collected tests: **702** in 16 files.
 | `test_fresh_python_receipt_verifies_in_node_and_tamper_fails` |  |
 | `test_replay_receipt_with_context_verifies_in_node_and_tamper_fails` |  |
 | `test_receipt_without_context_keeps_old_encoding` |  |
+| `test_strict_numbers_python_matches_vector[receipt_v 1.0]` |  |
+| `test_strict_numbers_python_matches_vector[receipt_v 1e0]` |  |
+| `test_strict_numbers_python_matches_vector[receipt_v 10E-1]` |  |
+| `test_strict_numbers_python_matches_vector[receipt_v -0]` |  |
+| `test_strict_numbers_python_matches_vector[receipt_v 2^53+1]` |  |
+| `test_strict_numbers_python_matches_vector[decision.schema_v 1.0]` |  |
+| `test_strict_numbers_python_matches_vector[blast_radius.score 80.0]` |  |
+| `test_strict_numbers_python_matches_vector[caps big int]` |  |
+| `test_strict_numbers_python_matches_vector[caps big negative int]` |  |
+| `test_strict_numbers_python_matches_vector[caps -0]` |  |
+| `test_strict_numbers_python_matches_vector[caps -0.0]` |  |
+| `test_strict_numbers_python_matches_vector[caps cpus 5e-1 (same value, free-form field)]` |  |
+| `test_strict_numbers_python_matches_vector[caps pids 01]` |  |
+| `test_strict_numbers_python_matches_vector[caps pids +1]` |  |
+| `test_strict_numbers_python_matches_vector[caps pids 1e400]` |  |
+| `test_strict_numbers_python_matches_vector[caps pids -0e0]` |  |
+| `test_strict_numbers_python_matches_vector[caps pids -1e-400]` |  |
+| `test_strict_numbers_python_matches_vector[caps pids 32.0]` |  |
+| `test_strict_numbers_python_matches_vector[receipt_v 1E+0]` |  |
+| `test_strict_numbers_python_matches_vector[unchanged]` |  |
+| `test_strict_numbers_node_matches_python[receipt_v 1.0]` |  |
+| `test_strict_numbers_node_matches_python[receipt_v 1e0]` |  |
+| `test_strict_numbers_node_matches_python[receipt_v 10E-1]` |  |
+| `test_strict_numbers_node_matches_python[receipt_v -0]` |  |
+| `test_strict_numbers_node_matches_python[receipt_v 2^53+1]` |  |
+| `test_strict_numbers_node_matches_python[decision.schema_v 1.0]` |  |
+| `test_strict_numbers_node_matches_python[blast_radius.score 80.0]` |  |
+| `test_strict_numbers_node_matches_python[caps big int]` |  |
+| `test_strict_numbers_node_matches_python[caps big negative int]` |  |
+| `test_strict_numbers_node_matches_python[caps -0]` |  |
+| `test_strict_numbers_node_matches_python[caps -0.0]` |  |
+| `test_strict_numbers_node_matches_python[caps cpus 5e-1 (same value, free-form field)]` |  |
+| `test_strict_numbers_node_matches_python[caps pids 01]` |  |
+| `test_strict_numbers_node_matches_python[caps pids +1]` |  |
+| `test_strict_numbers_node_matches_python[caps pids 1e400]` |  |
+| `test_strict_numbers_node_matches_python[caps pids -0e0]` |  |
+| `test_strict_numbers_node_matches_python[caps pids -1e-400]` |  |
+| `test_strict_numbers_node_matches_python[caps pids 32.0]` |  |
+| `test_strict_numbers_node_matches_python[receipt_v 1E+0]` |  |
+| `test_strict_numbers_node_matches_python[unchanged]` |  |

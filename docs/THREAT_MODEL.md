@@ -50,9 +50,10 @@ This document describes the assets, adversaries, threats, and mitigations for Ai
 
 **Mitigations**:
 - Wall-clock timeout watchdog kills the container at the cap
-- The bootstrap sets `RLIMIT_NPROC` for the job uid (minimum 64); a fork past it fails with EAGAIN, which the job sees and the bootstrap records as an `nproc_limit_reached` note
-- `--pids-limit` equals that cap under runc. Under runsc the cgroup counts the sandbox kernel's host threads, not job processes, and hitting it kills the whole sandbox (exit 2, no output); runsc therefore gets `max(4 x cap, 512)` and the job is bounded by `RLIMIT_NPROC`
-- Under runsc, many forked Python processes are charged against `--memory` sooner than under runc, so a fork-heavy job can end as `killed_by=oom` there instead of EAGAIN; both outcomes are recorded
+- The bootstrap sets `RLIMIT_NPROC` for the job uid to exactly the `pids` value in the signed decision caps (32 for the Arena, 64 for tasks; no floor). I call this `job_nproc`. A fork past it fails with EAGAIN, which the job sees and the bootstrap records as an `nproc_limit_reached` note
+- `--pids-limit` (`cgroup_pids_headroom` in `/api/policy`) equals `job_nproc` under runc. Under runsc the cgroup counts the sandbox kernel's host threads, not job processes, and hitting it kills the whole sandbox (exit 2, no output); runsc therefore gets `max(4 x job_nproc, 512)`, so the Arena's `--pids-limit 512` under runsc is headroom, not the job's cap. The guest view of `pids.max` under runsc reads `max`
+- Under runsc the practical fork ceiling is memory, not `RLIMIT_NPROC`: each forked Python process is charged against `--memory`, and the fifth review's fork bombs ended as an OOM kill (137, `killed_by=oom`, report discarded) before EAGAIN. Under runc the same jobs stop at about `job_nproc - 4` children with EAGAIN. Both outcomes are recorded and neither leaves the container
+- `policy.max_pids` in `/api/policy` is only the ceiling a requested `pids` cap is clamped to; it is not what a given run gets
 - `--memory` cap triggers OOM killer
 - `--cpus` throttles CPU usage
 - stdout and stderr capped at 1 MiB each (truncation is flagged); `/work/out` artifacts capped at 64 files / 8 MiB total
@@ -65,7 +66,7 @@ This document describes the assets, adversaries, threats, and mitigations for Ai
 **Threat**: Kernel exploit allows sandbox escape to host.
 
 **Mitigations**:
-- The job runs as uid 65534 with no capabilities. The bootstrap (PID 1) starts as uid 0 with only `SETUID` and `SETGID` so it can drop the job to that uid; see section 8
+- The job runs as uid 65534 with no capabilities. The bootstrap (PID 1) starts as uid 0 with only `SETUID`, `SETGID` and `SETPCAP` so it can empty the job's capability bounding set and drop the job to that uid; see section 8
 - `--cap-drop ALL` removes every other capability
 - `--security-opt no-new-privileges` prevents privilege escalation
 - Default seccomp profile blocks dangerous syscalls
@@ -119,12 +120,12 @@ This document describes the assets, adversaries, threats, and mitigations for Ai
 **Threat**: The job writes a fake result document to the bootstrap's stdout (`/proc/1/fd/1`), kills or ptraces PID 1, or prints a second document, so the host records a false exit code, stdout or artifacts.
 
 **Mitigations**:
-- Privilege split. The container starts as uid 0 with `--cap-drop ALL --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges`. The bootstrap calls `prctl(PR_SET_DUMPABLE, 0)`, unpacks the inputs (root-owned, read-only for the job) and runs the job as uid/gid 65534 with `setgroups([])`, stdin `/dev/null`, `close_fds`. A different uid means the job cannot open `/proc/1/fd/*`, `/proc/1/mem` or `/proc/1/environ`, cannot `ptrace` PID 1 and cannot signal it. After the job exits, a child that switches to uid 65534 kills every remaining process of that uid, then collects `/work/out`, so a leftover process cannot change artifacts during collection or hold the output pipes open.
+- Privilege split. The container starts as uid 0 with `--cap-drop ALL --cap-add SETUID --cap-add SETGID --cap-add SETPCAP --security-opt no-new-privileges`. The bootstrap calls `prctl(PR_SET_DUMPABLE, 0)`, unpacks the inputs (root-owned, read-only for the job) and runs the job as uid/gid 65534. In the job child, before the uid switch, it calls `prctl(PR_CAPBSET_DROP)` for every capability (this is the only use of `SETPCAP`), then `setgroups([])`, and after the switch it checks that CapInh, CapPrm, CapEff, CapBnd and CapAmb are all zero and refuses to run the job otherwise (test S17b, under runc and runsc). The bounding set has to be emptied while still root, because dropping it needs `CAP_SETPCAP` in the effective set, which a uid-65534 process no longer has. no-new-privileges stays on. The job also gets stdin `/dev/null`, `close_fds`. A different uid means the job cannot open `/proc/1/fd/*`, `/proc/1/mem` or `/proc/1/environ`, cannot `ptrace` PID 1 and cannot signal it. After the job exits, a child that switches to uid 65534 kills every remaining process of that uid, then collects `/work/out`, so a leftover process cannot change artifacts during collection or hold the output pipes open.
 - Per-run nonce. The host sends a random 128-bit nonce as the first stdin line. It is never in argv, env or files and the job gets `/dev/null` as stdin. The report must carry it.
 - Strict acceptance on the host. The report is used only if the container's stdout is exactly one JSON document with no duplicate keys, the exact key set, strict types and the right nonce, and the container exited 0 with no timeout or OOM. Otherwise the run is recorded with `report_invalid=true`, empty stdout/stderr/artifacts, and the exit code from `docker inspect` (never 0: 137 after a kill, 125 if the container somehow exited 0 without a valid report).
 - Regression tests run on real Docker under runsc and runc (`tests/test_sandbox.py::TestReportForgery`) and with the fake Docker (`tests/test_sandbox_unit.py::TestReportForgeryUnit`).
 
-**Tradeoff**: PID 1 runs as uid 0 inside the container, holding only SETUID/SETGID (no `CAP_DAC_OVERRIDE`, `CAP_KILL`, `CAP_SYS_PTRACE`, `CAP_CHOWN`). It is fixed repository code and never executes job code before dropping privileges. A bug in the bootstrap itself would run as uid 0 in the container, which with a read-only rootfs and those two caps is still weaker than the job but not equivalent to `--user 65534`. The job's `/work` is root-owned (0755); only `/work/out` (1777, sticky), `/tmp` and `/dev/shm` are writable to it.
+**Tradeoff**: PID 1 runs as uid 0 inside the container, holding only SETUID/SETGID/SETPCAP (no `CAP_DAC_OVERRIDE`, `CAP_KILL`, `CAP_SYS_PTRACE`, `CAP_CHOWN`). It is fixed repository code and never executes job code before dropping privileges. A bug in the bootstrap itself would run as uid 0 in the container, which with a read-only rootfs and those three caps is still weaker than the job but not equivalent to `--user 65534`. The job's `/work` is root-owned (0755); only `/work/out` (1777, sticky), `/tmp` and `/dev/shm` are writable to it.
 
 **Residual risk**: A kernel or runtime bug that lets uid 65534 cross into uid 0 inside the container would defeat the split; the nonce and strict parsing still require the forger to read PID 1's memory.
 

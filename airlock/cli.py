@@ -23,7 +23,7 @@ from airlock.receipt import (
     canonical_json,
     hash_data,
     load_chain_head,
-    load_receipt,
+    parse_receipt_unchecked,
     signed_payload,
 )
 from airlock.schemas import Receipt
@@ -50,7 +50,10 @@ def _load_public_key(pubkey_path: Path):
 
 
 def _read_receipt(path: Path) -> tuple[int, Receipt | None]:
-    """Read and strictly parse one receipt file: (exit code, receipt)."""
+    """Read and strictly parse one receipt file: (exit code, receipt).
+
+    The crypto is checked by _check_receipt so each failure gets its exit code.
+    """
     try:
         text = path.read_text()
     except FileNotFoundError:
@@ -60,7 +63,7 @@ def _read_receipt(path: Path) -> tuple[int, Receipt | None]:
         print(f"✗ Error reading receipt {path}: {e}")
         return EXIT_IO_ERROR, None
     try:
-        return EXIT_SUCCESS, load_receipt(text)
+        return EXIT_SUCCESS, parse_receipt_unchecked(text)
     except ReceiptFormatError as e:
         print(f"✗ Receipt {path.name} rejected: {e}")
         return EXIT_SCHEMA_ERROR, None

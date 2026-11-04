@@ -1,6 +1,7 @@
 """Receipt signing and verification."""
 
 import json
+import math
 import re
 from hashlib import sha256
 from pathlib import Path
@@ -39,6 +40,22 @@ def _reject_constant(name: str) -> Any:
     raise ReceiptFormatError(f"non-finite number {name}")
 
 
+def _parse_float(token: str) -> float:
+    # integer fields reject floats in the strict schema; -0.0 is a second encoding of 0
+    value = float(token)
+    if not math.isfinite(value):
+        raise ReceiptFormatError(f"number out of range: {token[:32]}")
+    if value == 0 and token.startswith("-"):
+        raise ReceiptFormatError("negative zero is not allowed")
+    return value
+
+
+def _parse_int(token: str) -> int:
+    if token == "-0":
+        raise ReceiptFormatError("negative zero is not allowed")
+    return int(token)
+
+
 def _check_ints(value: Any, where: str = "$") -> None:
     if isinstance(value, bool):
         return
@@ -56,7 +73,11 @@ def parse_strict_json(text: str) -> Any:
     """Parse JSON rejecting duplicate keys, NaN/Infinity and unsafe integers."""
     try:
         data = json.loads(
-            text, object_pairs_hook=_reject_duplicates, parse_constant=_reject_constant
+            text,
+            object_pairs_hook=_reject_duplicates,
+            parse_constant=_reject_constant,
+            parse_float=_parse_float,
+            parse_int=_parse_int,
         )
     except ReceiptFormatError:
         raise
@@ -71,8 +92,43 @@ def signed_payload(receipt_dict: dict[str, Any]) -> bytes:
     return canonical_json({k: v for k, v in receipt_dict.items() if k not in SIGNED_OUT})
 
 
-def load_receipt(text: str) -> Receipt:
-    """Load a receipt from JSON text, accepting exactly one encoding of each value.
+class ReceiptVerifyError(ReceiptFormatError):
+    """A strictly well-formed receipt whose hash or signature does not check out."""
+
+
+class ReceiptHashError(ReceiptVerifyError):
+    """The stored hash is not the sha256 of the signed payload."""
+
+
+class ReceiptSignatureError(ReceiptVerifyError):
+    """The Ed25519 signature does not verify under the given public key."""
+
+
+def load_receipt(text: str, public_key: Ed25519PublicKey) -> Receipt:
+    """Parse a receipt strictly and verify its hash and signature.
+
+    This is the public way to read a receipt. The key is required on purpose:
+    a receipt that only parses proves nothing. Raises ReceiptFormatError for a
+    malformed document, ReceiptHashError or ReceiptSignatureError (both
+    ReceiptVerifyError) when the crypto does not check out.
+    """
+    receipt = parse_receipt_unchecked(text)
+    canonical = signed_payload(receipt.model_dump(by_alias=True))
+    if hash_data(canonical) != receipt.hash:
+        raise ReceiptHashError("hash does not match the signed payload")
+    try:
+        public_key.verify(bytes.fromhex(receipt.sig_ed25519), canonical)
+    except Exception as e:
+        raise ReceiptSignatureError("signature does not verify") from e
+    return receipt
+
+
+def parse_receipt_unchecked(text: str) -> Receipt:
+    """Parse a receipt WITHOUT checking its hash or signature.
+
+    Use load_receipt() unless the caller checks the crypto itself (the CLI does,
+    to map hash and signature failures to their own exit codes). Accepts
+    exactly one encoding of each value.
 
     The document must have no duplicate keys, every schema field present with
     its exact JSON type (no "0" or 0.0 for an integer), integers within

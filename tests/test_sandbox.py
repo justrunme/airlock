@@ -134,6 +134,53 @@ class TestSandbox:
 
             assert "0000000000000000" in output
 
+    def test_s17c_shell_and_glob_semantics_the_policy_relies_on(self):
+        """S17c: job.sh runs under a shell without brace expansion, and pathlib
+        wildcards never match '..' (the policy allows both forms)."""
+        runner = SandboxRunner()
+        caps = {"timeout_s": 10, "mem_mb": 128, "cpus": 0.5, "pids": 32}
+        sh = ActionRequest(
+            id="act_s17c1",
+            task_id="task_01",
+            tool="run_code",
+            lang="shell",
+            code="echo {/etc,/proc}/*",
+        )
+        py = ActionRequest(
+            id="act_s17c2",
+            task_id="task_01",
+            tool="run_code",
+            lang="python",
+            code='from pathlib import Path\nprint(list(Path("/work").glob(".*/.*/etc/*")))',
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runner.run(sh, caps, Path(tmpdir))
+            out = (Path(tmpdir) / "output" / "stdout.txt").read_text()
+            assert out.strip() == "{/etc,/proc}/*", out
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runner.run(py, caps, Path(tmpdir))
+            out = (Path(tmpdir) / "output" / "stdout.txt").read_text()
+            assert out.strip() == "[]", out
+
+    def test_s17b_bounding_set_is_empty(self):
+        """S17b: every capability set of the job is empty, bounding set included."""
+        runner = SandboxRunner()
+        action = ActionRequest(
+            id="act_s17b",
+            task_id="task_01",
+            tool="run_code",
+            lang="shell",
+            code="grep -E '^Cap(Inh|Prm|Eff|Bnd|Amb)' /proc/self/status",
+        )
+        caps = {"timeout_s": 10, "mem_mb": 128, "cpus": 0.5, "pids": 32}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runner.run(action, caps, Path(tmpdir))
+            output = (Path(tmpdir) / "output" / "stdout.txt").read_text()
+            sets = dict(line.split(":") for line in output.split("\n") if line)
+            assert set(sets) == {"CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"}, output
+            assert all(int(v.strip(), 16) == 0 for v in sets.values()), output
+
     def test_s18_no_new_privs(self):
         """S18: no_new_privs = 1."""
         runner = SandboxRunner()
@@ -409,8 +456,9 @@ sys.exit(1)
             assert host_config["PidsLimit"] == (64 if runner.runtime == "runc" else 512)
             assert sorted(host_config.get("CapAdd") or []) == [
                 "CAP_SETGID",
+                "CAP_SETPCAP",
                 "CAP_SETUID",
-            ] or sorted(host_config.get("CapAdd") or []) == ["SETGID", "SETUID"]
+            ] or sorted(host_config.get("CapAdd") or []) == ["SETGID", "SETPCAP", "SETUID"]
             for mount in ("/tmp", "/dev/shm"):
                 opts = (host_config.get("Tmpfs") or {})[mount]
                 for opt in ("noexec", "nosuid", "nodev", "size="):

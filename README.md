@@ -21,7 +21,7 @@ The web app has four tabs:
 - **Python**: Parsed with `ast`. Imports must come from an allow-list of standard-library modules (for example `re`, `json`, `csv`, `collections`, `datetime`, `statistics`, `pathlib`, `gzip`, `hashlib`, `ipaddress`); unknown modules are denied. `os` is limited to `os.path`, `os.listdir`, `os.sep` and `os.linesep`, and `sys` to an attribute allow-list. `eval`, `exec`, `compile` (except `re.compile`), `__import__`, `_`-prefixed and introspection attributes, the `getattr` family with non-literal names, `operator.attrgetter`/`methodcaller`/`itemgetter`, module aliasing and attribute lookups in format strings are denied. File paths must be literals inside `/work/input` (read) or `/work/out` (read/write).
 - **Shell**: Parsed with a shell lexer. Only allow-listed binaries with allow-listed options run (`cat`, `grep`/`egrep`/`fgrep`/`zgrep`, `awk`, `sed`, `jq`, `sort`, `uniq`, `wc`, `head`, `tail`, `cut`, `ls`, `zcat`, `gzip`/`gunzip` to stdout, `tee`, `date`, plus `echo`, `printf`, `tr`, `test`). sed and awk are not trusted as read-only: sed scripts must parse into a fixed subset without `e`, `w`, `r` or branches, and awk `getline`, `system`, redirects and `ENVIRON` are denied. File arguments may only name relative paths, `/work`, `/work/input`, `/work/out` or `/dev/null`; output goes only to `/work/out` and never to script files. Other interpreters (`python3`, `perl`, `ruby`, ...), forbidden binaries (`docker`, `mount`, `sudo`, `curl`, `wget`, `ssh`, `nc`, ...), loops, process substitution, variable expansions, command substitution and assignment-prefixed commands are denied. This is checked against a test corpus only; the sandbox is the second line of defence (see docs/KNOWN_LIMITATIONS.md).
 - **Network**: Only `--network none` is supported. Egress allowlist mode is NOT implemented and raises an error if requested.
-- **Sandbox hardening**: Read-only rootfs, tmpfs /work (plus small noexec tmpfs /tmp and /dev/shm), job runs as uid 65534, no capabilities for the job, no-new-privileges, pids/mem/cpu limits, wall-clock timeout watchdog with `docker kill`. The job's report is bound to a per-run nonce and parsed strictly. `files_in` reads only from a configured inputs directory.
+- **Sandbox hardening**: Read-only rootfs, tmpfs /work (plus small noexec tmpfs /tmp and /dev/shm), job runs as uid 65534, no capabilities for the job, no-new-privileges, process/mem/cpu limits (the job's process cap is `RLIMIT_NPROC` = the signed `pids` cap; docker `--pids-limit` is only headroom under gVisor, where a fork bomb usually ends as an OOM kill first, see docs/THREAT_MODEL.md), wall-clock timeout watchdog with `docker kill`. The job's report is bound to a per-run nonce and parsed strictly. `files_in` reads only from a configured inputs directory.
 - **Verifier**: Post-execution cleanup checks (container removed, no dangling networks), secret pattern scan, artifact hash validation.
 - **Receipts**: RFC 8785 JCS canonical JSON, Ed25519 signatures, hash chain linking, optional signed chain head. Verification rejects duplicate keys, type coercion, missing fields and non-canonical hex (exit codes in `airlock/cli.py`).
 
@@ -73,6 +73,17 @@ These numbers are from my own test corpus only. They are not a general detection
 | benign cases | 154 |
 | false allow | 0 |
 | false deny | 0 |
+
+A second corpus, `tests/corpus_independent/`, was written by an independent reviewer, not by me. These numbers are on this corpus only:
+
+| | before review 5 fixes | after |
+|---|---|---|
+| attack cases | 398 | 398 |
+| benign cases | 79 | 79 |
+| false allow | 46 (6 security-relevant) | 39 (0 security-relevant) |
+| false deny | 1 | 1 |
+
+The 6 security-relevant misses were five pathlib `glob`/`rglob` patterns with `..` and `test -r /etc/passwd`. I reviewed each of the 39 remaining false-ALLOWs by hand: they are imports, prints, no-ops, reads of `/work/input`, writes to `/work/out`, or loops stopped by the sandbox caps. `tests/corpus_independent/triage.json` gives the reason for each, and CI fails on any row outside that list. The one false-DENY is `tail -f`, which I deny on purpose (docs/KNOWN_LIMITATIONS.md section 7).
 
 `scripts/corpus_metrics.py` makes `airlock/web/static/metrics.json`, and CI runs it with `--check` so the page can't show stale numbers.
 

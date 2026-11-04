@@ -177,7 +177,7 @@
 <section id="tab-arena" class="tab" hidden>
   <h2>Attack arena</h2>
   <p>Submit Python or bash. It goes through the same policy and sandbox as the agent's code:
-  no network, read-only root, no capabilities, no secrets, 10&nbsp;s, 128&nbsp;MB, 32 pids.
+  no network, read-only root, no capabilities, no secrets, 10&nbsp;s, 128&nbsp;MB, 32 processes (RLIMIT_NPROC).
   Benign code runs; anything the policy does not understand is denied.</p>
   <p class="hint">The counter below is global: it adds up every submission from every visitor to this server, not just yours.</p>
   <div class="counter" id="counter">attempts: &ndash; &middot; blocked: &ndash; &middot; ran: &ndash; &middot; rejected: &ndash;</div>
@@ -220,9 +220,12 @@
 
 <section class="facts">
   <details id="corpus"><summary><h2>Policy corpus numbers</h2></summary>
-  <p>Computed by <code>scripts/corpus_metrics.py</code> over the adversarial and benign cases in the
-  test suite. These are numbers <strong>on this corpus</strong>, which I wrote while building the
-  policy. They say nothing about attacks I did not think of.</p>
+  <p>Computed by <code>scripts/corpus_metrics.py</code> over two corpora. Every number is
+  <strong>on this corpus</strong> only. The first corpus I wrote myself while building the policy:
+  0 false-ALLOW on my own corpus. The second was written by an independent reviewer: on that corpus
+  the policy had 46 false-ALLOWs before my fixes, 6 of them security-relevant, and after the fixes
+  39 remain, 0 of them security-relevant (I triaged each by hand). Neither says anything about
+  attacks nobody thought of.</p>
   <table id="metrics"><tbody><tr><td>loading&hellip;</td></tr></tbody></table>
 
   </details>

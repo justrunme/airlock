@@ -95,7 +95,8 @@ class ReceiptChain:
         if len(matches) != 1:
             return None
         text = matches[0].read_text()
-        load_receipt(text)  # never serve a file that is not a strict receipt
+        # never serve a file that is not a strict receipt signed by this server
+        load_receipt(text, self.signer.public_key)
         return text
 
     def count(self) -> int:

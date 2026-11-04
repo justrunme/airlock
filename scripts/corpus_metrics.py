@@ -77,8 +77,54 @@ def compute() -> dict:
     }
 
 
+INDEPENDENT = ROOT / "tests" / "corpus_independent"
+
+
+def compute_independent() -> dict:
+    """The review 5 corpus, written by an independent reviewer; reported on its own."""
+    engine = PolicyEngine()
+    rows = [json.loads(x) for x in (INDEPENDENT / "corpus.jsonl").read_text().splitlines() if x]
+    triage = json.loads((INDEPENDENT / "triage.json").read_text())
+    adv = ben = false_allow = false_deny = 0
+    misses = []
+    for line, row in enumerate(rows, 1):
+        action = ActionRequest(
+            id=f"ind{line}",
+            task_id="metrics",
+            tool="run_code",
+            lang=row["lang"],
+            code=row["code"],
+        )
+        allowed = engine.evaluate(action).verdict == "allow"
+        if row["kind"] == "attack":
+            adv += 1
+            if allowed:
+                false_allow += 1
+                reason = triage["false_allow"].get(str(line), "untriaged")
+                misses.append({"line": line, "kind": "false_allow", "triage": reason})
+        else:
+            ben += 1
+            if not allowed:
+                false_deny += 1
+                reason = triage["false_deny"].get(str(line), "untriaged")
+                misses.append({"line": line, "kind": "false_deny", "triage": reason})
+    untriaged = sum(m["triage"] == "untriaged" for m in misses)
+    return {
+        "scope": "on this corpus only; written by an independent reviewer, not the policy author",
+        "source": "tests/corpus_independent/corpus.jsonl",
+        "corpus_sha256": hashlib.sha256((INDEPENDENT / "corpus.jsonl").read_bytes()).hexdigest(),
+        "adversarial": adv,
+        "benign": ben,
+        "false_allow": false_allow,
+        "false_allow_security_relevant": untriaged,
+        "false_deny": false_deny,
+        "pre_fix": triage["pre_fix"],
+        "misses": misses,
+    }
+
+
 def main() -> int:
-    text = json.dumps(compute(), indent=2) + "\n"
+    text = json.dumps({**compute(), "independent": compute_independent()}, indent=2) + "\n"
     if "--check" in sys.argv:
         if not OUT.exists() or OUT.read_text() != text:
             print("metrics.json is stale: run python scripts/corpus_metrics.py", file=sys.stderr)

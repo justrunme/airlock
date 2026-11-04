@@ -12,8 +12,10 @@ Protocol (stdin):
   devices and FIFOs are rejected.
 
 Privilege split:
-- The container starts as uid 0 with every capability dropped except SETUID
-  and SETGID, and with no-new-privileges. This program marks itself
+- The container starts as uid 0 with every capability dropped except SETUID,
+  SETGID and SETPCAP, and with no-new-privileges. Before the uid switch the
+  child empties its capability bounding set (SETPCAP is needed only for
+  that), and after it the child checks that every capability set is empty. This program marks itself
   non-dumpable, unpacks the archive (root-owned, read-only for the job), then
   runs the job as uid/gid 65534 with no supplementary groups, stdin closed,
   and RLIMIT_NPROC set from argv[1]. The job cannot open /proc/1/fd/*, read
@@ -49,6 +51,7 @@ MAX_STREAM_BYTES = 1024 * 1024
 MAX_ARTIFACTS = 64
 MAX_ARTIFACT_BYTES = 8 * 1024 * 1024
 PR_SET_DUMPABLE = 4
+PR_CAPBSET_DROP = 24
 NPROC_HINT = re.compile(
     rb"Resource temporarily unavailable|\[Errno 11\]|[Cc]an(?:'|no)t fork|fork: retry"
 )
@@ -70,12 +73,42 @@ def _no_dump():
         pass
 
 
+def _drop_bounding_set():
+    # Empty the capability bounding set while still root (this needs
+    # CAP_SETPCAP, which the container grants only for this step), so nothing
+    # later in this process can regain a capability even through a setuid or
+    # file-capability binary. no-new-privileges stays on as well.
+    libc = ctypes.CDLL(None, use_errno=True)
+    try:
+        with open("/proc/sys/kernel/cap_last_cap") as f:
+            last = int(f.read())
+    except (OSError, ValueError):
+        last = 63
+    for cap in range(last + 1):
+        if libc.prctl(PR_CAPBSET_DROP, cap, 0, 0, 0) != 0:
+            err = ctypes.get_errno()
+            if err == 22 and cap > 40:  # EINVAL: cap unknown to this kernel
+                break
+            raise OSError(err, f"PR_CAPBSET_DROP {cap} failed")
+
+
+def _check_no_caps():
+    with open("/proc/self/status") as f:
+        for line in f:
+            key, _, value = line.partition(":")
+            caps_set = key in ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb")
+            if caps_set and int(value.strip(), 16) != 0:
+                raise OSError(f"{key} is not empty after the privilege drop")
+
+
 def _drop_privileges():
+    _drop_bounding_set()
     os.setgroups([])
     os.setresgid(JOB_GID, JOB_GID, JOB_GID)
     os.setresuid(JOB_UID, JOB_UID, JOB_UID)
     if os.getuid() != JOB_UID or os.geteuid() != JOB_UID:
         raise OSError("privilege drop failed")
+    _check_no_caps()
 
 
 def _safe_name(name):

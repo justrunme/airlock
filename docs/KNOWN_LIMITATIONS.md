@@ -72,6 +72,28 @@ This document lists genuine limitations that remain after implementation.
 
 **Truncation**: Without `--chain-head`, deleting receipts from the end of a chain is not detectable (`verify-chain` returns 0 for the shorter chain). Sign the head with `airlock chain-head sign` and pass it to `verify-chain --chain-head` to detect this. The head file is excluded from the receipt set by resolved path, so it may live in the chain directory.
 
+## 7. `tail -f` Is Denied on Purpose
+
+**Status**: Deliberate false DENY
+**Behavior**: `tail -f`, `tail -F` and `--follow` are refused (`R-SHELL-OPTION`). The fifth independent review counted `tail -f /work/input/app.log` as its one benign false DENY.
+
+**Why I keep it**: inside the sandbox nothing appends to `/work/input`, so `tail -f` never ends. It would only hold a sandbox slot until the wall-clock watchdog kills it, and a killed run discards its report and output. `tail -n 100 /work/input/app.log` gives the same answer and terminates. I do not loosen the policy to cut false DENYs.
+
+## 8. Allowed Rows of the Independent Corpus
+
+**Status**: Reviewed, harmless when allowed
+**Behavior**: after the review 5 fixes the independent corpus (`tests/corpus_independent/`) still has 39 rows labelled "attack" that the policy allows. I checked each one; `triage.json` there names the reason per row:
+
+- Imports of allowed modules or printing an attribute (`import os,sys`, `import urllib.request`, `print(__doc__)`, `sys.exit(0)`, `base64.b64decode(...)`): no file, process or network effect. The calls that would do something (`os.system`, `urlopen`, `open` of a denied path) are denied.
+- A string that spells a dangerous name (`"__imp"+"ort__"`): turning it into a call needs `eval`, `exec`, `getattr` or `__import__`, all denied.
+- Recursion, `itertools.count()` and `time.sleep(1000)`: stopped by the timeout and memory caps.
+- `open("/work/out/l")` "after a symlink": the path is allowed, and every way to create a symlink (`ln`, `cp`, `tar`, `os.symlink`, `Path.symlink_to`) is denied.
+- Writes to `/work/out` (10 MB in Python, `echo hi > /work/out/x`, `gzip -c ... > /work/out/a.gz`): that is the output directory, and the artifact limits cap what is kept.
+- `printf "%b" "\x2fetc\x2fpasswd"`: it prints a string. Using it as a path needs `$var`, `$()`, backticks or `xargs`, which are all denied and pinned by tests.
+- `echo *`: the shell expands it relative to `/work`. Globs that reach outside (`echo /etc/*`, `test -r /e*`) are checked as paths and denied.
+- `zgrep`, `egrep`, `fgrep`, `gawk`, `mawk`, `nawk` on `/work/input`: allow-listed tools reading allowed input.
+- `:` and `false`: no-ops.
+
 ## Security Stance
 
 All limitations follow fail-closed principles:
@@ -84,7 +106,7 @@ I do not claim absolute security. I state what is enforced and what remains vuln
 
 ## Sandbox data path
 
-The host sends a per-run nonce line followed by a tar archive with the job and its input files over stdin. A fixed bootstrap program (`airlock/bootstrap.py`, passed as `python3 -c`) unpacks it into the `/work` tmpfs, runs the job as uid 65534 (the bootstrap itself is uid 0 with only SETUID/SETGID, see THREAT_MODEL section 8) and prints one JSON report with the nonce, the exit code, capped stdout/stderr, truncation flags, the files under `/work/out` and any dropped files with their size and reason. Inputs appear at `/work/input/`; only `/work/out/` is collected. The host recomputes every artifact sha256. Limits: 1 MiB per output stream, 64 artifacts and 8 MiB in total; anything beyond is dropped, and the Execution record and signed receipt carry `stdout_truncated`, `stderr_truncated` and `artifacts_dropped`.
+The host sends a per-run nonce line followed by a tar archive with the job and its input files over stdin. A fixed bootstrap program (`airlock/bootstrap.py`, passed as `python3 -c`) unpacks it into the `/work` tmpfs, runs the job as uid 65534 (the bootstrap itself is uid 0 with only SETUID/SETGID/SETPCAP, see THREAT_MODEL section 8) and prints one JSON report with the nonce, the exit code, capped stdout/stderr, truncation flags, the files under `/work/out` and any dropped files with their size and reason. Inputs appear at `/work/input/`; only `/work/out/` is collected. The host recomputes every artifact sha256. Limits: 1 MiB per output stream, 64 artifacts and 8 MiB in total; anything beyond is dropped, and the Execution record and signed receipt carry `stdout_truncated`, `stderr_truncated` and `artifacts_dropped`.
 
 The report is trusted only when it is exactly one strictly valid document with this run's nonce and the container exited 0 without a timeout or OOM kill. In every other case the Execution has `report_invalid=true`, stdout, stderr and artifacts are empty, and the exit code comes from `docker inspect` (never 0). When the container is killed (OOM or timeout) the report is therefore always discarded, even if one was printed.
 
