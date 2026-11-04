@@ -30,3 +30,26 @@ th { background:var(--card); } .facts { margin-top:28px; } footer { margin:32px 
 .check { margin:4px 0; } .spinner::after { content:" ⏳"; }
 .notice { border-left:4px solid #c80; background:#3a2a05; padding:8px 12px; }
 .step-title { font-size:15px; }
+.headline { font-weight:600; }
+.banner { border-left:4px solid var(--acc); background:#0d2440; padding:8px 12px; border-radius:4px; word-break:break-all; }
+.tab.flash { animation:flash 1.6s ease-out; }
+@keyframes flash { from { box-shadow:0 0 0 3px var(--acc); } to { box-shadow:0 0 0 3px transparent; } }
+.spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--acc); border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin,.tab.flash { animation:none; } }
+.turns { margin:6px 0 0; padding-left:22px; color:var(--mut); font-size:13px; }
+.turns li.done::after { content:" ✓"; color:var(--ok); } .turns li.now { color:var(--fg); }
+/* small screens */
+pre.scroll, pre { max-width:100%; }
+pre.scroll { white-space:pre; overflow-x:auto; }
+main, header, section, .card { min-width:0; overflow-wrap:anywhere; }
+@media (max-width: 600px) {
+  body { padding:10px; font-size:14px; }
+  nav { flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+  nav button { white-space:nowrap; padding:8px 10px; font-size:13px; flex:0 0 auto; }
+  input[size] { width:100%; }
+  .row label { width:100%; }
+  .kv { grid-template-columns:1fr; } .kv dt { margin-top:4px; }
+  .facts table, .limits { display:block; overflow-x:auto; }
+  td,th { padding:4px 6px; }
+}
