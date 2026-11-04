@@ -72,6 +72,13 @@ This document lists genuine limitations that remain after implementation.
 
 **Truncation**: Without `--chain-head`, deleting receipts from the end of a chain is not detectable (`verify-chain` returns 0 for the shorter chain). Sign the head with `airlock chain-head sign` and pass it to `verify-chain --chain-head` to detect this. The head file is excluded from the receipt set by resolved path, so it may live in the chain directory.
 
+## 7. `tail -f` Is Denied on Purpose
+
+**Status**: Deliberate false DENY
+**Behavior**: `tail -f`, `tail -F` and `--follow` are refused (`R-SHELL-OPTION`). The fifth independent review counted `tail -f /work/input/app.log` as its one benign false DENY.
+
+**Why I keep it**: inside the sandbox nothing appends to `/work/input`, so `tail -f` never ends. It would only hold a sandbox slot until the wall-clock watchdog kills it, and a killed run discards its report and output. `tail -n 100 /work/input/app.log` gives the same answer and terminates. I do not loosen the policy to cut false DENYs.
+
 ## Security Stance
 
 All limitations follow fail-closed principles:
