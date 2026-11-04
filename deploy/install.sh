@@ -10,7 +10,7 @@ UV="${UV:-$HOME/.local/bin/uv}"
 sudo mkdir -p /opt/airlock
 sudo rsync -a --delete --exclude .git --exclude .venv ./ "$SRC/"
 sudo chown -R root:root /opt/airlock
-sudo "$UV" venv --quiet --python /usr/bin/python3.12 /opt/airlock/venv
+sudo "$UV" venv --quiet --allow-existing --python /usr/bin/python3.12 /opt/airlock/venv
 sudo VIRTUAL_ENV=/opt/airlock/venv "$UV" pip install --quiet "$SRC[web]"
 
 if ! sudo test -f /etc/airlock/airlock.env; then
