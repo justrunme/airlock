@@ -168,10 +168,10 @@ function renderTask(out, target) {
 function headlineText(o) {
   const blk = `${o.blocked} of ${o.proposed} proposed action${o.proposed === 1 ? "" : "s"} blocked by the gate`;
   switch (o.state) {
-    case "completed": return ["completed", "allow", `completed — ${blk}`];
-    case "all_blocked": return ["all blocked", "deny", `all ${o.proposed} proposed action${o.proposed === 1 ? " was" : "s were"} blocked by the gate; nothing ran`];
-    case "no_actions": return ["no actions", "neutral", "the model answered without proposing any code"];
-    default: return ["failed", "fail", `failed — the task did not finish (${blk}, ${o.ran_ok} ran successfully)`];
+    case "completed": return ["completed", "allow", `— ${blk}`];
+    case "all_blocked": return ["all blocked", "deny", `— all ${o.proposed} proposed action${o.proposed === 1 ? " was" : "s were"} blocked by the gate; nothing ran`];
+    case "no_actions": return ["no actions", "neutral", "— the model answered without proposing any code"];
+    default: return ["failed", "fail", `— the task did not finish (${blk}, ${o.ran_ok} ran successfully)`];
   }
 }
 function headline(o) {
@@ -201,7 +201,8 @@ function startProgress(target) {
       [...list.children].forEach((li, i) => { li.className = i + 1 < last.turn ? "done" : "now"; });
     } else line.textContent = ` ${last ? PHASE[last.phase] ?? last.phase : "starting"} · ${secs}s elapsed`;
   };
-  tick();
+  // the run registers its progress id when the POST arrives, so the first poll waits a beat
+  line.textContent = " starting · 0s elapsed";
   const h = setInterval(tick, 1500);
   return { pid, stop: () => clearInterval(h) };
 }

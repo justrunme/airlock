@@ -31,7 +31,7 @@ th { background:var(--card); } .facts { margin-top:28px; } footer { margin:32px 
 .notice { border-left:4px solid #c80; background:#3a2a05; padding:8px 12px; }
 .step-title { font-size:15px; }
 .headline { font-weight:600; }
-.banner { border-left:4px solid var(--acc); background:#0d2440; padding:8px 12px; border-radius:4px; word-break:break-all; }
+.banner { border-left:4px solid var(--acc); background:#0d2440; padding:8px 12px; border-radius:4px; overflow-wrap:anywhere; }
 .tab.flash { animation:flash 1.6s ease-out; }
 @keyframes flash { from { box-shadow:0 0 0 3px var(--acc); } to { box-shadow:0 0 0 3px transparent; } }
 .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--acc); border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; }
