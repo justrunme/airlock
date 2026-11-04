@@ -1,12 +1,20 @@
 # Airlock
 
-Verified execution firewall for AI agents.
+Live demo: https://45-77-141-253.sslip.io
 
 ## What it is
 
-I built Airlock because I don't want an agent's mistake to become my incident. The model only *proposes* actions. An independent, deterministic policy engine decides whether to allow, deny, or require approval. Allowed code runs in a disposable hardened Docker container, then a verifier checks the result and cleanup, and a signed receipt is produced that anyone can verify offline.
+I built Airlock because I don't want an agent's mistake to become my incident. The model only *proposes* actions. A deterministic policy engine decides whether to allow, deny, or ask for approval. Allowed code runs in a throwaway hardened container (gVisor `runsc` on the demo VM). A verifier then checks the result and the cleanup, and every decision gets an Ed25519-signed receipt that anyone can check offline, including in the browser.
+
+The web app has four tabs:
+
+1. **Real task.** The agent analyses a sample app log and writes a Markdown report. Every action it proposes goes through the gate.
+2. **Injected task.** Same task, but the log contains a fake "ops-runbook" line that tells the agent to `curl ... | sh` and to post `env` to an outside host. If the agent proposes either, the gate blocks it and shows the rule that fired.
+3. **Attack Arena.** You type code yourself and see the verdict, the rules, the run output and the receipt.
+4. **Verify.** Paste any receipt and the page checks the JSON, the schema, the SHA-256 hash over RFC 8785 JCS and the signature with WebCrypto. A tamper button shows what a failed check looks like.
 
 ## What is actually enforced
+
 
 - **Fail-closed policy**: Default deny. Actions are allowed only when explicitly recognized as safe.
 - **Language allowlist**: Only `python`, `bash`, `sh` accepted.
@@ -21,28 +29,29 @@ I built Airlock because I don't want an agent's mistake to become my incident. T
 
 ```mermaid
 graph TD
-    A[User/Task] --> B[Agent Loop]
-    B -->|LLM calls| C[Vultr Serverless Inference]
-    B -->|proposes| D[Policy + Blast-Radius Engine]
-    D -->|decision| E[Sandbox Runner]
-    E -->|execution| F[Verifier]
-    F -->|verified| G[Receipt Signer]
-    G -->|signed receipt| H[Receipt Store]
+    U[Browser] -->|HTTPS| C[Caddy :443]
+    C -->|127.0.0.1:8080| W[FastAPI app, user airlock]
+    W --> A[Agent loop]
+    A -->|API key from root-only env file| I[Vultr Serverless Inference qwen3.8-27b]
+    A -->|proposed action| P[Policy + blast-radius engine]
+    W -->|Arena code| P
+    P -->|allow| S[Sandbox: docker + runsc, network none]
+    P -->|deny| R
+    S --> V[Verifier: cleanup, secret scan, artifact hashes]
+    V --> R[Receipt signer: JCS + Ed25519 + hash chain]
+    R --> St[(/var/lib/airlock/receipts)]
+    U -->|verify.js in the page| R
 ```
 
-1. **Agent Loop** uses Vultr Serverless Inference (OpenAI-compatible API) to generate actions
-2. **Policy Engine** evaluates actions against YAML rules with static code analysis
-3. **Blast-Radius Estimator** scores potential impact (0-100)
-4. **Sandbox Runner** executes approved code in isolated Docker containers
-5. **Verifier** checks post-execution state and scans for secrets
-6. **Receipt Signer** produces Ed25519-signed receipts with hash chaining
+The model's output is only data. Decisions come from code. The inference key is only in the app process; it is never passed into a sandbox container (the container gets a scrubbed environment and no network).
 
-## Vultr Services Used
+## Vultr services used
 
-- **Vultr Serverless Inference**: All agent LLM calls go through `https://api.vultrinference.com/v1` (OpenAI-compatible endpoint). Default model: `qwen3.8-27b`
-- **Vultr Cloud Compute VM**: Ubuntu instance running Docker for sandbox execution and the control plane
+- **Vultr Cloud Compute**: one VM in Frankfurt (45.77.141.253). It runs Docker with the gVisor runtime, the FastAPI app as a systemd service, Caddy for HTTPS, and a prune timer.
+- **Vultr Serverless Inference**: the only LLM path. All agent calls go to `https://api.vultrinference.com/v1` (OpenAI-compatible) with model `qwen3.8-27b`. It is a reasoning model, so I use `max_tokens` of at least 2048 (the web tasks use 12000).
 
 ## Threat Model
+
 
 | Threat | Mitigation | Residual Risk |
 |--------|-----------|---------------|
@@ -54,18 +63,80 @@ graph TD
 | LLM self-approval | Decisions come from deterministic code only; LLM output is data | None |
 | Receipt forgery | Ed25519 signatures + hash chain | Compromised host can sign lies |
 
-## Honest Limits
+## Corpus metrics
 
-I built this for the Vultr Agent Rush hackathon. Be aware:
+These numbers are from my own test corpus only. They are not a general detection rate.
 
-- **Container isolation reduces risk but doesn't eliminate it.** Docker shares the kernel with the host. A kernel exploit could escape the sandbox.
-- **Static policy can be evaded.** The sandbox is the real boundary, not the code analyzer.
-- **Receipts are only as trustworthy as the host that signs them.** If the host is compromised, receipts can be forged.
-- **This is not tested by a professional red team.** Use at your own risk.
+| | count |
+|---|---|
+| adversarial cases | 255 |
+| benign cases | 154 |
+| false allow | 0 |
+| false deny | 0 |
 
-Receipts prove that Airlock observed and recorded what happened. They do not prove the host wasn't compromised.
+`scripts/corpus_metrics.py` makes `airlock/web/static/metrics.json`, and CI runs it with `--check` so the page can't show stale numbers.
+
+## Demo signing key
+
+Receipts from the live demo are signed with this Ed25519 key:
+
+```
+public_key_hex: d8c2acc2972692ee205a7e056d8ae2791906ba1e17f9bdf2cee14baf53377748
+fingerprint (sha256): f42776ee997b0f0930f32d3620458e9b0d5b7afa5f610fd14756c6c8bc4510ce
+```
+
+You can also get it from `/api/pubkey`. To check a receipt without the browser:
+
+```bash
+node tests/js/verify_cli.mjs receipt.json d8c2acc2972692ee205a7e056d8ae2791906ba1e17f9bdf2cee14baf53377748
+```
+
+## Run the web app locally
+
+```bash
+pip install -e ".[web]"
+export VULTR_INFERENCE_API_KEY=...   # only needed for the two agent tabs
+airlock-web                          # listens on 127.0.0.1:8080
+```
+
+The Arena and Verify tabs work without a key. Settings come from `AIRLOCK_*` variables (`AIRLOCK_DATA_DIR`, `AIRLOCK_RUNTIME`, rate limits, `AIRLOCK_TRUST_PROXY`); see `airlock/web/app.py`.
+
+## Run it on a Vultr VM
+
+I use one Ubuntu VM with Docker and gVisor installed and a user `airlock` in the `docker` group.
+
+```bash
+# from a checkout, copy the code to the VM and install
+git archive HEAD | ssh airlock@VM 'mkdir -p ~/src && tar -x -C ~/src'
+ssh airlock@VM 'cd ~/src && HOST=<ip-with-dashes>.sslip.io sh deploy/install.sh'
+# put the key in a root-only file read by systemd
+sudo install -d -m 700 /etc/airlock
+sudo sh -c 'umask 077; echo VULTR_INFERENCE_API_KEY=... > /etc/airlock/airlock.env'
+sudo systemctl restart airlock-web
+```
+
+`deploy/` has the systemd unit (runs as `airlock`, hardened with `ProtectSystem=strict`), the Caddyfile (HTTPS through sslip.io, HTTP redirects to HTTPS), and `airlock-prune.timer`, which removes leftover `airlock-*` containers and networks every 10 minutes. The app binds to 127.0.0.1 only, because Docker-published ports skip ufw. Caddy is the only public listener and the Docker socket is never exposed.
+
+## Demo script
+
+1. Open the live demo. Point at the header: policy hash, runtime `runsc`, and the corpus numbers.
+2. **Real task**: run it. The agent's code passes the gate, runs in gVisor, and writes `report.md`. Each step has a receipt.
+3. **Injected task**: run it and show the runbook line in the log. Any harmful action it proposes is blocked with the rule that fired. The live model often refuses the injection by itself; the page then says "0 harmful actions proposed" and I go to the Arena.
+4. **Attack Arena**: click "curl | sh (from the injected log)". It is denied (`R-BIN-CURL`, `R-SHELL-EXEC-FILE`). Then "exfil env". Then a benign `print(1+1)`, which runs and shows `container_absent: true`.
+5. **Verify**: paste the last receipt, it passes. Click tamper, the hash check fails.
+
+## Limitations
+
+- The live model (qwen3.8-27b) often refuses the prompt injection by itself. So the injected task doesn't always show a blocked harmful action. The Arena shows the gate blocking the same commands every time.
+- Each `run_code` call is a new sandbox. Files don't carry over between calls.
+- Container isolation lowers risk but doesn't remove it. gVisor helps, but the host is still shared.
+- Static policy can be evaded. The sandbox is the real boundary.
+- Receipts are only as honest as the host that signs them. The demo key lives on the VM.
+- Receipts are kept on the VM and not pruned; only containers and networks are.
+- Nobody has red-teamed this professionally. See `docs/KNOWN_LIMITATIONS.md`.
 
 ## Installation
+
 
 Requires Python 3.12+ and Docker.
 
