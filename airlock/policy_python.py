@@ -9,6 +9,7 @@ prove is denied; the sandbox is the second line of defence.
 """
 
 import ast
+import fnmatch
 import string
 from pathlib import PurePosixPath
 from typing import Any
@@ -202,7 +203,7 @@ FS_MUTATORS = {"unlink", "rmdir", "rename", "symlink_to", "hardlink_to", "chmod"
 DENIED_ATTR_PREFIXES = ("_", "exec", "spawn")
 
 DENIED_CALLS = {"eval", "exec", "compile", "__import__", "breakpoint"}
-INTROSPECTION_CALLS = {"vars", "globals", "locals", "dir"}
+INTROSPECTION_CALLS = {"vars", "globals", "locals", "dir", "help"}
 ALLOWED_DUNDER_NAMES = {"__name__", "__doc__"}
 
 SYS_ALLOWED = {"stdout", "stderr", "stdin", "exit", "version", "version_info", "maxsize", "argv"}
@@ -233,9 +234,17 @@ PATHLIB_READ = {
     "exists",
     "is_file",
     "is_dir",
+    "walk",
+    "stat",
+    "lstat",
+    "is_symlink",
+    "readlink",
+    "samefile",
+    "is_mount",
 }
 PATHLIB_WRITE = {"write_text", "write_bytes", "touch", "mkdir"}
-PATH_ITERATORS = {"glob", "rglob", "iterdir"}
+PATH_ITERATORS = {"glob", "rglob", "iterdir", "walk"}
+GLOB_ITERATORS = {"glob", "rglob"}
 ALLOC_CALLS = {"bytearray", "bytes", "range", "zeros"}
 MAX_ALLOC = 64 * 1024 * 1024
 MAX_NUMBER = 1 << 64
@@ -254,6 +263,24 @@ def path_violation(path: str, write: bool) -> tuple[str, str] | None:
             return "R-PY-OPEN-WRITE", f"write outside /work/out/: {path}"
     elif not full.is_relative_to("/work/input") and not full.is_relative_to("/work/out"):
         return "R-PY-OPEN-READ", f"read outside /work/input/: {path}"
+    return None
+
+
+def glob_violation(base: str, pattern: str) -> tuple[str, str] | None:
+    """Return (rule, message) when a glob pattern can leave its base directory.
+
+    A pattern is refused when it is absolute, has a ``..`` segment, has a
+    bracket segment that matches ``..``, or when base/pattern normalised by
+    path_violation is outside the read roots.
+    """
+    if not pattern or pattern.startswith("/") or "\\" in pattern:
+        return "R-PY-GLOB-TRAVERSAL", f"glob pattern {pattern!r} is not a relative literal"
+    for seg in pattern.split("/"):
+        if ".." in seg or ("[" in seg and fnmatch.fnmatchcase("..", seg)):
+            return "R-PY-GLOB-TRAVERSAL", f"glob pattern {pattern!r} climbs out of its base"
+    violation = path_violation(str(PurePosixPath(base) / pattern), False)
+    if violation:
+        return "R-PY-GLOB-TRAVERSAL", f"glob {base}/{pattern} is outside the read roots"
     return None
 
 
@@ -381,14 +408,9 @@ class PythonChecker:
                 base = self.resolve_path(it.func.value)
                 if base is None or path_violation(base, False):
                     continue
-                if it.func.attr != "iterdir":
-                    pattern = it.args[0] if it.args else None
-                    if not (
-                        isinstance(pattern, ast.Constant)
-                        and isinstance(pattern.value, str)
-                        and not pattern.value.startswith("/")
-                        and ".." not in pattern.value
-                    ):
+                if it.func.attr in GLOB_ITERATORS:
+                    pattern = self.glob_pattern(it)
+                    if pattern is None or glob_violation(base, pattern):
                         continue
                 self.derived[target.id] = base
 
@@ -432,6 +454,21 @@ class PythonChecker:
                 return left + right
             return str(PurePosixPath(left) / right)
         return None
+
+    def glob_pattern(self, call: ast.Call) -> str | None:
+        """The literal pattern of a glob()/rglob() call, or None."""
+        node = self.arg(call, 0, "pattern")
+        if isinstance(node, ast.Name) and node.id in self.consts:
+            node = self.consts[node.id]
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        return None
+
+    def zip_handle(self, node: ast.AST) -> bool:
+        """True when node is a name bound once to zipfile.ZipFile(...) (member open)."""
+        if isinstance(node, ast.Name) and node.id in self.consts:
+            node = self.consts[node.id]
+        return isinstance(node, ast.Call) and self.qual(node.func) == "zipfile.ZipFile"
 
     def check_access(
         self,
@@ -670,26 +707,21 @@ class PythonChecker:
             "open"
         }:
             receiver = self.resolve_path(func.value)
-            looks_like_path = receiver is not None or self.is_path_ctor(
-                getattr(func.value, "func", None) or func.value
-            )
-            if func.attr == "open":
-                if looks_like_path:
-                    self.check_access(
-                        func.value,
-                        self.arg(node, 0, "mode"),
-                        "r",
-                        write_rule="R-PY-PATHLIB-WRITE",
-                        read_rule="R-PY-PATHLIB-READ",
-                    )
+            if func.attr == "open" and receiver is None:
+                # Only a zipfile handle may open a non-path member name; any other
+                # unresolvable receiver could be a Path that walked out of /work.
+                if not self.zip_handle(func.value):
+                    self.flag("open() on a non-literal path", "R-PY-OPEN-NONLITERAL")
+            elif func.attr == "open":
+                self.check_access(
+                    func.value,
+                    self.arg(node, 0, "mode"),
+                    "r",
+                    write_rule="R-PY-PATHLIB-WRITE",
+                    read_rule="R-PY-PATHLIB-READ",
+                )
             elif receiver is None:
-                if (
-                    func.attr in PATHLIB_WRITE
-                    or func.attr in {"read_text", "read_bytes"}
-                    or func.attr in PATH_ITERATORS
-                    and looks_like_path
-                ):
-                    self.flag(f"{func.attr}() on a non-literal path", "R-PY-OPEN-NONLITERAL")
+                self.flag(f"{func.attr}() on a non-literal path", "R-PY-OPEN-NONLITERAL")
             else:
                 write = func.attr in PATHLIB_WRITE
                 self.check_access(
@@ -699,6 +731,16 @@ class PythonChecker:
                     write_rule="R-PY-PATHLIB-WRITE",
                     read_rule="R-PY-PATHLIB-READ",
                 )
+                if func.attr in GLOB_ITERATORS:
+                    pattern = self.glob_pattern(node)
+                    if pattern is None:
+                        self.flag(
+                            f"{func.attr}() with a non-literal pattern", "R-PY-GLOB-TRAVERSAL"
+                        )
+                    else:
+                        violation = glob_violation(receiver, pattern)
+                        if violation:
+                            self.flag(violation[1], violation[0])
 
     def run(self) -> dict[str, Any]:
         try:
