@@ -3,36 +3,115 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Airlock: policy-gated sandbox for agent actions</title>
+<title>Airlock: stop a compromised AI agent before it runs anything</title>
+<meta name="description" content="Airlock checks every action an AI agent proposes with an independent policy gate, runs allowed code in a gVisor sandbox with no network, and signs every decision into a receipt you can verify in your browser.">
+<meta name="theme-color" content="#0b0d12">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Airlock">
+<meta property="og:title" content="Airlock: AI agents make mistakes. Your infrastructure shouldn't pay for them.">
+<meta property="og:description" content="Run untrusted agent actions. Contain dangerous behavior. Verify every decision. Live demo: a compromised agent's curl | sh is blocked before any container starts.">
+<meta property="og:url" content="https://45-77-141-253.sslip.io/">
+<meta property="og:image" content="https://45-77-141-253.sslip.io/static/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Airlock: agent action detected, curl | sh, blocked before execution, no container started, signed receipt.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Airlock: AI agents make mistakes. Your infrastructure shouldn't pay for them.">
+<meta name="twitter:description" content="Run untrusted agent actions. Contain dangerous behavior. Verify every decision.">
+<meta name="twitter:image" content="https://45-77-141-253.sslip.io/static/og.png">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/app.css">
 <script type="module" src="/static/app.js"></script>
 </head>
 <body>
+<a class="skip" href="#result">Skip to the demo result</a>
+<div class="topbar">
+  <span class="brand"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect x="2.5" y="2.5" width="27" height="27" rx="7" fill="none" stroke="currentColor" stroke-width="2.5"/><rect x="9" y="7.5" width="14" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16" y1="7.5" x2="16" y2="24.5" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="16" r="3.2" fill="#0b0d12" stroke="currentColor" stroke-width="2"/></svg>Airlock</span>
+  <span class="topmeta">Live on a Vultr VM · gVisor sandbox · <a href="https://github.com/justrunme/airlock">source</a></span>
+</div>
+
 <header class="hero">
-  <h1>Airlock</h1>
   <p class="promise">Don't trust the agent. Verify what it actually did.</p>
-  <p class="lede">An LLM agent proposes code. A static policy decides. Allowed code runs in a
-  throwaway container with no network. Every decision is written to an Ed25519-signed,
-  hash-chained receipt you can check in this page.</p>
+  <h1>AI agents make mistakes. <span class="acc">Your infrastructure shouldn't pay for them.</span></h1>
+  <p class="sub">Run untrusted agent actions. Contain dangerous behavior. Verify every decision.</p>
+  <div class="cta">
+    <button id="attack-run" class="primary big"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>Watch Airlock stop an attack</button>
+    <p class="hint cta-note">About 3 seconds, no model call. A compromised agent's proposals are scripted; the policy gate, the sandbox and the signed receipts are real.</p>
+  </div>
   <p class="threat"><strong>The threat:</strong> the agent read a log that told it to run
-  <code>curl | sh</code>. Here is what happened next.</p>
-  <h2 class="demo-h">Demo in 3 steps</h2>
-  <ol class="steps">
-    <li><a href="#tab-injected" data-goto="injected"><strong>Attack</strong><span>replay a compromised agent: the analysis runs, the three harmful steps are cut before any container starts</span></a></li>
-    <li><a href="#tab-arena" data-goto="arena"><strong>Safe code passes</strong><span><code>print(1+1)</code> in the Arena runs in the sandbox</span></a></li>
-    <li><a href="#tab-verify" data-goto="verify"><strong>Verify</strong><span>check a blocked action's signed receipt, then tamper one character</span></a></li>
+  <code>curl | sh</code>. Airlock assumes the agent is already compromised and asks one question:
+  can an independent gate stop the action?</p>
+</header>
+
+<section id="result" class="event" data-state="empty" aria-live="polite" aria-label="Result of the attack replay">
+  <ol class="ev-stages">
+    <li class="ev ev-detect"><span class="ev-k" data-filled="Agent action detected">1 · Agent proposal</span>
+      <code id="ev-cmd" class="ev-cmd">Press “Watch Airlock stop an attack” to see the real proposal</code></li>
+    <li class="ev ev-block"><span class="ev-k" data-filled="Blocked before execution">2 · Gate decision</span>
+      <span id="ev-rules" class="ev-v">waiting for the gate</span></li>
+    <li class="ev ev-nocont"><span class="ev-k" data-filled="No container started">3 · Sandbox</span>
+      <span id="ev-nocont" class="ev-v">waiting for the sandbox record</span></li>
+    <li class="ev ev-receipt"><span class="ev-k" data-filled="Signed receipt">4 · Receipt</span>
+      <span class="ev-v"><code id="ev-rid">waiting for the receipt</code></span>
+      <button id="ev-verify" class="small" disabled>Verify in browser</button></li>
   </ol>
-  <div class="row">
-    <button id="demo-run">Run the 3-step demo (about 10 s)</button>
-    <span class="hint" id="demo-status">No model call: the replay uses scripted proposals, the gate, sandbox and receipts are real.</span>
+  <p id="ev-summary" class="ev-summary hint">Nothing has run yet.</p>
+
+  <div class="guided">
+    <h2 class="demo-h">Demo in 3 steps</h2>
+    <ol class="steps">
+      <li><a href="#tab-injected" data-goto="injected"><strong>Attack</strong><span>replay a compromised agent: the analysis runs, the three harmful steps are cut before any container starts</span></a></li>
+      <li><a href="#tab-arena" data-goto="arena"><strong>Safe code passes</strong><span><code>print(1+1)</code> in the Arena runs in the sandbox</span></a></li>
+      <li><a href="#tab-verify" data-goto="verify"><strong>Verify</strong><span>check a blocked action's signed receipt, then tamper one character</span></a></li>
+    </ol>
+    <div class="row">
+      <button id="demo-run" class="secondary">Run all 3 steps (about 15 s)</button>
+      <span class="hint" id="demo-status">No model call: the replay uses scripted proposals, the gate, sandbox and receipts are real.</span>
+    </div>
   </div>
-  <div id="beforeafter" class="beforeafter" data-state="empty">
-    <div class="ba-before"><div class="ba-label">What the agent proposed</div><pre id="ba-code" class="ba-placeholder">Run the demo to see the proposed action</pre></div>
-    <div class="ba-arrow" id="ba-rule">vs</div>
-    <div class="ba-after"><div class="ba-label">What actually ran</div><p class="ba-nothing" id="ba-ran"></p><p class="hint" id="ba-why">Run the demo to see what ran</p></div>
+</section>
+
+<section class="why" aria-labelledby="why-h">
+  <h2 id="why-h">Why Airlock matters</h2>
+  <div class="why-grid">
+    <div class="why-card without"><h3>Without Airlock</h3>
+      <p>An AI agent follows a malicious instruction hidden in a log and attempts an unsafe action.
+      Whatever it proposes runs with the agent's access.</p></div>
+    <div class="why-card with"><h3>With Airlock</h3>
+      <p>The action is independently checked, blocked before execution, and recorded in a
+      verifiable receipt. Safe work still runs, inside a sandbox with no network.</p></div>
   </div>
-  </div>
+  <p class="closing">An AI agent can make a mistake. Airlock makes sure that mistake doesn't automatically become an incident.</p>
+</section>
+
+<section class="pipe" aria-labelledby="pipe-h">
+  <h2 id="pipe-h">How a proposed action moves</h2>
+  <svg class="pipeline pipeline-h" viewBox="0 0 960 190" role="img" aria-labelledby="pipe-t pipe-d">
+    <title id="pipe-t">Airlock pipeline</title>
+    <desc id="pipe-d">Agent proposes, then policy gate, then sandbox (gVisor), then verifier, then signed receipt. A blocked action stops at the policy gate and goes straight to a signed receipt; no sandbox is started.</desc>
+    <g class="p-node"><rect x="10" y="40" width="150" height="64" rx="12"/><text x="85" y="70">Agent</text><text x="85" y="90" class="p-sub">proposes code</text></g>
+    <g class="p-node p-gate"><rect x="210" y="40" width="150" height="64" rx="12"/><text x="285" y="70">Policy gate</text><text x="285" y="90" class="p-sub">static, allow-list</text></g>
+    <g class="p-node"><rect x="410" y="40" width="150" height="64" rx="12"/><text x="485" y="70">Sandbox</text><text x="485" y="90" class="p-sub">gVisor, no network</text></g>
+    <g class="p-node"><rect x="610" y="40" width="150" height="64" rx="12"/><text x="685" y="70">Verifier</text><text x="685" y="90" class="p-sub">output and cleanup</text></g>
+    <g class="p-node p-receipt"><rect x="800" y="40" width="150" height="64" rx="12"/><text x="875" y="70">Signed receipt</text><text x="875" y="90" class="p-sub">Ed25519, hash chain</text></g>
+    <g class="p-arrow"><line x1="160" y1="72" x2="204" y2="72"/><line x1="360" y1="72" x2="404" y2="72"/><line x1="560" y1="72" x2="604" y2="72"/><line x1="760" y1="72" x2="794" y2="72"/></g>
+    <g class="p-ok"><text x="382" y="62">allow</text></g>
+    <g class="p-block"><path d="M285 104 V150 H875 V110"/><circle cx="285" cy="150" r="13"/><path d="M279 144 l12 12 M291 144 l-12 12" class="p-x"/>
+      <text x="305" y="176" class="p-blocktext">deny: the blocked action stops here, no container is created, the decision is still signed</text></g>
+  </svg>
+  <svg class="pipeline pipeline-v" viewBox="0 0 340 470" role="img" aria-labelledby="pipe-tv pipe-dv">
+    <title id="pipe-tv">Airlock pipeline</title>
+    <desc id="pipe-dv">Agent proposes, policy gate, sandbox (gVisor), verifier, signed receipt. A blocked action stops at the policy gate; no sandbox is started and the decision is still signed.</desc>
+    <g class="p-node"><rect x="10" y="10" width="200" height="56" rx="12"/><text x="110" y="35">Agent</text><text x="110" y="54" class="p-sub">proposes code</text></g>
+    <g class="p-node p-gate"><rect x="10" y="106" width="200" height="56" rx="12"/><text x="110" y="131">Policy gate</text><text x="110" y="150" class="p-sub">static, allow-list</text></g>
+    <g class="p-node"><rect x="10" y="202" width="200" height="56" rx="12"/><text x="110" y="227">Sandbox</text><text x="110" y="246" class="p-sub">gVisor, no network</text></g>
+    <g class="p-node"><rect x="10" y="298" width="200" height="56" rx="12"/><text x="110" y="323">Verifier</text><text x="110" y="342" class="p-sub">output and cleanup</text></g>
+    <g class="p-node p-receipt"><rect x="10" y="394" width="200" height="56" rx="12"/><text x="110" y="419">Signed receipt</text><text x="110" y="438" class="p-sub">Ed25519, hash chain</text></g>
+    <g class="p-arrow"><line x1="110" y1="66" x2="110" y2="104"/><line x1="110" y1="162" x2="110" y2="200"/><line x1="110" y1="258" x2="110" y2="296"/><line x1="110" y1="354" x2="110" y2="392"/></g>
+    <g class="p-ok"><text x="138" y="186">allow</text></g>
+    <g class="p-block"><path d="M210 134 H270 V422 H214"/><circle cx="270" cy="134" r="13"/><path d="M264 128 l12 12 M276 128 l-12 12" class="p-x"/>
+      <text x="270" y="172" class="p-blocktext p-vt">deny</text><text x="270" y="190" class="p-blocktext p-vt">stops</text><text x="270" y="208" class="p-blocktext p-vt">here</text><text x="270" y="250" class="p-blocktext p-vt">no</text><text x="270" y="268" class="p-blocktext p-vt">container</text></g>
+  </svg>
   <p class="statuses"><span class="badge deny">BLOCKED</span> the gate denied it before anything ran
   · <span class="badge allow">ALLOWED</span> it passed the gate
   · <span class="badge contained">CONTAINED</span> allowed code ran in the restricted sandbox (runsc, no network, limits)
@@ -45,10 +124,10 @@
   <strong>What I do not:</strong> that the policy catches every attack, or that the host itself
   is honest. The receipt proves what was recorded, not that the machine was uncompromised.
   <a href="#limits">Known limitations</a>.</p>
-  <p class="closing">An AI agent can make a mistake. Airlock makes sure that mistake doesn't automatically become an incident.</p>
   <p class="meta" id="meta">loading&hellip;</p>
-</header>
+</section>
 
+<h2 class="tabs-h">Try it yourself</h2>
 <nav role="tablist">
   <button role="tab" data-tab="injected" aria-selected="true">1. Compromised agent</button>
   <button role="tab" data-tab="real">2. Real task (live model)</button>
