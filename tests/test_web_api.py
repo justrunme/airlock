@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from airlock.receipt import load_receipt, signed_payload  # noqa: E402
 from airlock.schemas import Artifact, Cleanup, Execution  # noqa: E402
+from airlock.web import tasks
 from airlock.web.app import Settings, create_app  # noqa: E402
 from airlock.web.chain import ReceiptChain  # noqa: E402
 
@@ -190,7 +191,7 @@ class TestTask:
     def test_action_budget(self, make):
         c, runner, *_ = make([BENIGN] * 10)
         body = c.post("/api/task", json={"kind": "real"}).json()
-        assert sum(len(t["actions"]) for t in body["turns"]) <= 3
+        assert sum(len(t["actions"]) for t in body["turns"]) <= tasks.MAX_ACTIONS
 
     def test_task_bad_kind(self, make):
         c, *_ = make()
