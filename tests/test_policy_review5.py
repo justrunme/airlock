@@ -12,6 +12,14 @@ from airlock.schemas import ActionRequest
 P = "from pathlib import Path\n"
 
 PY_DENY = [
+    # second self-attack: a bound path method called later, out of check_call's view
+    P + 'r = Path("/etc/passwd").read_text\nprint(r())',
+    P + 'g = Path("/work/input").glob\nprint(list(g("../../etc/*")))',
+    P + 'm = getattr(Path("/work/input"), "glob")\nprint(list(m("../../etc/*")))',
+    P + 'f = getattr(Path("/etc/passwd"), "read_bytes")\nprint(f())',
+    P + 'w = Path("/etc/x").write_text\nw("a")',
+    P + 'o = Path("/etc/passwd").open\nprint(o().read())',
+    P + 'print(list(map(lambda f: f(), [Path("/etc/passwd").read_text])))',
     # H1: glob/rglob patterns that climb out of the base directory
     P + 'for f in Path("/work/input").glob("../../etc/*"):\n print(f)',
     P + 'for f in Path("/work/input").glob("../../*"):\n print(f)',
@@ -67,6 +75,8 @@ SH_DENY = [
 ]
 
 PY_ALLOW = [
+    P + 'print(Path("/work/input/a.log").read_text()[:10])',
+    'print(getattr(str, "upper")("a"))',
     P + 'for f in Path("/work/input").glob("*.log"):\n print(f.read_text()[:10])',
     P + 'for f in sorted(Path("/work/input").rglob("**/*.log")):\n print(f)',
     P + 'print(list(Path("/work/input").glob("app-[0-9].log")))',

@@ -245,6 +245,9 @@ PATHLIB_READ = {
 PATHLIB_WRITE = {"write_text", "write_bytes", "touch", "mkdir"}
 PATH_ITERATORS = {"glob", "rglob", "iterdir", "walk"}
 GLOB_ITERATORS = {"glob", "rglob"}
+# A path method may only be called in place; a bound reference (r = p.read_text)
+# would be called later where check_call cannot see its receiver.
+PATH_METHODS = PATHLIB_READ | PATHLIB_WRITE | {"open"}
 ALLOC_CALLS = {"bytearray", "bytes", "range", "zeros"}
 MAX_ALLOC = 64 * 1024 * 1024
 MAX_NUMBER = 1 << 64
@@ -572,6 +575,10 @@ class PythonChecker:
                 self.check_qual(q)
         if node.attr == "compile" and self.qual(node.value) == "re":
             return
+        if node.attr in PATH_METHODS:
+            parent = self.parents.get(id(node))
+            if not (isinstance(parent, ast.Call) and parent.func is node):
+                self.flag(f"reference to path method .{node.attr}", "R-PY-PATH-METHOD-REF")
         if self.denied_attr(node.attr):
             if node.attr == "modules":
                 rule = "R-PY-SYS-MODULES"
@@ -679,6 +686,8 @@ class PythonChecker:
                 self.flag(f"{fname} non-literal", "R-PY-GETATTR")
             elif self.denied_attr(name_arg.value) or name_arg.value in DENIED_CALLS:
                 self.flag(f"{fname} dangerous attr {name_arg.value}", "R-PY-GETATTR-DANGER")
+            elif fname == "getattr" and name_arg.value in PATH_METHODS:
+                self.flag(f"getattr of path method {name_arg.value}", "R-PY-PATH-METHOD-REF")
             elif fname == "setattr" or fname == "delattr":
                 self.flag(f"{fname} mutates objects", "R-PY-GETATTR")
         self.check_format(node)

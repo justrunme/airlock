@@ -134,6 +134,34 @@ class TestSandbox:
 
             assert "0000000000000000" in output
 
+    def test_s17c_shell_and_glob_semantics_the_policy_relies_on(self):
+        """S17c: job.sh runs under a shell without brace expansion, and pathlib
+        wildcards never match '..' (the policy allows both forms)."""
+        runner = SandboxRunner()
+        caps = {"timeout_s": 10, "mem_mb": 128, "cpus": 0.5, "pids": 32}
+        sh = ActionRequest(
+            id="act_s17c1",
+            task_id="task_01",
+            tool="run_code",
+            lang="shell",
+            code="echo {/etc,/proc}/*",
+        )
+        py = ActionRequest(
+            id="act_s17c2",
+            task_id="task_01",
+            tool="run_code",
+            lang="python",
+            code='from pathlib import Path\nprint(list(Path("/work").glob(".*/.*/etc/*")))',
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runner.run(sh, caps, Path(tmpdir))
+            out = (Path(tmpdir) / "output" / "stdout.txt").read_text()
+            assert out.strip() == "{/etc,/proc}/*", out
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runner.run(py, caps, Path(tmpdir))
+            out = (Path(tmpdir) / "output" / "stdout.txt").read_text()
+            assert out.strip() == "[]", out
+
     def test_s17b_bounding_set_is_empty(self):
         """S17b: every capability set of the job is empty, bounding set included."""
         runner = SandboxRunner()

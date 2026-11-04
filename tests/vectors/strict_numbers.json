@@ -11,5 +11,12 @@
   {"name": "caps -0", "find": "\"pids\":32", "replace": "\"pids\":-0", "ok": false},
   {"name": "caps -0.0", "find": "\"cpus\":0.5", "replace": "\"cpus\":-0.0", "ok": false},
   {"name": "caps cpus 5e-1 (same value, free-form field)", "find": "\"cpus\":0.5", "replace": "\"cpus\":5e-1", "ok": true},
+  {"name": "caps pids 01", "find": "\"pids\":32", "replace": "\"pids\":01", "ok": false},
+  {"name": "caps pids +1", "find": "\"pids\":32", "replace": "\"pids\":+1", "ok": false},
+  {"name": "caps pids 1e400", "find": "\"pids\":32", "replace": "\"pids\":1e400", "ok": false},
+  {"name": "caps pids -0e0", "find": "\"pids\":32", "replace": "\"pids\":-0e0", "ok": false},
+  {"name": "caps pids -1e-400", "find": "\"pids\":32", "replace": "\"pids\":-1e-400", "ok": false},
+  {"name": "caps pids 32.0", "find": "\"pids\":32", "replace": "\"pids\":32.0", "ok": true},
+  {"name": "receipt_v 1E+0", "find": "\"receipt_v\":1,", "replace": "\"receipt_v\":1E+0,", "ok": false},
   {"name": "unchanged", "find": "\"receipt_v\":1,", "replace": "\"receipt_v\":1,", "ok": true}
 ]
