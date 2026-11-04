@@ -177,6 +177,7 @@ async function runReplay() {
   try {
     const out = await api("/api/task", { kind: "injected", mode: "replay_compromised" });
     renderReplay(out, target);
+    showBeforeAfter(out);
     return out;
   } catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); throw e; }
   finally { b.disabled = false; refreshMeta(); }
@@ -268,22 +269,34 @@ openFromHash();
 for (const a of document.querySelectorAll("[data-goto]")) {
   a.addEventListener("click", (e) => { e.preventDefault(); showTab(a.dataset.goto); document.querySelector("nav").scrollIntoView({ behavior: "smooth" }); });
 }
+// Before/after for the first blocked step of a real replay response. Filled only from API data.
+function showBeforeAfter(rep) {
+  const s = rep?.steps?.find((x) => x.verdict !== "allow");
+  if (!s) return;
+  const code = s.action?.code ?? s.code ?? "";
+  $("#ba-code").textContent = code.split("\n").slice(0, 4).join("\n");
+  $("#ba-rule").textContent = `${String(s.verdict).toUpperCase()} ${(s.rules_fired ?? []).map((r) => r.code ?? r).join(", ")}`;
+  $("#ba-why").textContent = neverStarted(s) ? "The sandbox never started for this step. Signed receipt " + String(s.receipt_id).slice(0, 8) + "…" : "Blocked by the gate.";
+  $("#beforeafter").hidden = false;
+}
 $("#demo-run").addEventListener("click", async () => {
   const b = $("#demo-run");
   const st = $("#demo-status");
   b.disabled = true;
   const say = (t) => { st.textContent = t; };
   try {
-    say("Step 1 of 3: running the real task with the live model (20–90 s). Watch the Real task tab.");
-    showTab("real");
-    await runTask(document.querySelector("button.run[data-kind=real]"));
-    say("Step 2 of 3: replaying a compromised agent through the real gate. Watch the Injected task tab.");
+    say("Step 1 of 3: replaying a compromised agent through the real gate (scripted proposals).");
     showTab("injected");
     const rep = await runReplay();
+    say("Step 2 of 3: submitting print(1+1) in the Arena, to show safe code still runs.");
+    showTab("arena");
+    $("#lang").value = "python"; $("#code").value = "print(1+1)"; $("#input-text").value = ""; sizeHint();
+    await runArena();
+    await new Promise((r) => setTimeout(r, 1200));
     const blocked = rep.steps.find((x) => x.verdict !== "allow" && x.receipt_id);
-    say("Step 3 of 3: loading a blocked action's signed receipt into the verifier in this browser.");
-    if (blocked) await loadReceipt(blocked.receipt_id);
-    say("Demo done. Every step above used live API data. Try “Tamper one character” in the verifier, or attack it in “Try to break it”.");
+    say("Step 3 of 3: verifying a blocked action's signed receipt in this browser, then tampering one character.");
+    if (blocked) { await loadReceipt(blocked.receipt_id); await new Promise((r) => setTimeout(r, 1500)); await loadReceipt(blocked.receipt_id, true); }
+    say("Demo done. Live API data throughout. The verifier now shows the tampered copy failing; “Restore original” brings back the valid one.");
   } catch (e) { say(`Demo stopped: ${e.message}. The tab shows what happened.`); }
   finally { b.disabled = false; }
 });
@@ -319,7 +332,7 @@ function showStats(s) {
 }
 async function refreshStats() { try { showStats(await api("/api/arena/stats")); } catch {} }
 
-$("#arena-run").addEventListener("click", async () => {
+async function runArena() {
   const b = $("#arena-run");
   const target = $("#out-arena");
   b.disabled = true;
@@ -330,11 +343,14 @@ $("#arena-run").addEventListener("click", async () => {
     const step = await api("/api/arena", body);
     target.replaceChildren(renderStep(step));
     showStats(step.stats);
+    return step;
   } catch (e) {
     target.replaceChildren(el("p", { class: "err" }, e.message));
     refreshStats();
+    throw e;
   } finally { b.disabled = false; refreshMeta(); }
-});
+}
+$("#arena-run").addEventListener("click", () => runArena().catch(() => {}));
 
 // ---------- verify
 async function loadReceipt(id, tamper = false, cue = true) {
