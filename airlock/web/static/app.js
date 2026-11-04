@@ -304,7 +304,7 @@ function showEvent(rep) {
   const blocked = steps.filter((x) => x.verdict !== "allow").length;
   const ran = steps.length - blocked;
   $("#ev-summary").textContent = `${steps.length} scripted proposals from a compromised agent went through the real gate: ` +
-    `${blocked} BLOCKED before execution, ${ran} ALLOWED and run in the sandbox (the legitimate log analysis). Every decision has a signed receipt. Full trace in the “Attack replay” tab below.`;
+    `${blocked} BLOCKED before execution, ${ran} ALLOWED and run in the sandbox (the legitimate log analysis). Every decision has a signed receipt. Full trace in the “Compromised agent” tab below.`;
   ev.dataset.state = "filled";
 }
 $("#attack-run").addEventListener("click", async () => {
