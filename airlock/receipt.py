@@ -71,8 +71,43 @@ def signed_payload(receipt_dict: dict[str, Any]) -> bytes:
     return canonical_json({k: v for k, v in receipt_dict.items() if k not in SIGNED_OUT})
 
 
-def load_receipt(text: str) -> Receipt:
-    """Load a receipt from JSON text, accepting exactly one encoding of each value.
+class ReceiptVerifyError(ReceiptFormatError):
+    """A strictly well-formed receipt whose hash or signature does not check out."""
+
+
+class ReceiptHashError(ReceiptVerifyError):
+    """The stored hash is not the sha256 of the signed payload."""
+
+
+class ReceiptSignatureError(ReceiptVerifyError):
+    """The Ed25519 signature does not verify under the given public key."""
+
+
+def load_receipt(text: str, public_key: Ed25519PublicKey) -> Receipt:
+    """Parse a receipt strictly and verify its hash and signature.
+
+    This is the public way to read a receipt. The key is required on purpose:
+    a receipt that only parses proves nothing. Raises ReceiptFormatError for a
+    malformed document, ReceiptHashError or ReceiptSignatureError (both
+    ReceiptVerifyError) when the crypto does not check out.
+    """
+    receipt = parse_receipt_unchecked(text)
+    canonical = signed_payload(receipt.model_dump(by_alias=True))
+    if hash_data(canonical) != receipt.hash:
+        raise ReceiptHashError("hash does not match the signed payload")
+    try:
+        public_key.verify(bytes.fromhex(receipt.sig_ed25519), canonical)
+    except Exception as e:
+        raise ReceiptSignatureError("signature does not verify") from e
+    return receipt
+
+
+def parse_receipt_unchecked(text: str) -> Receipt:
+    """Parse a receipt WITHOUT checking its hash or signature.
+
+    Use load_receipt() unless the caller checks the crypto itself (the CLI does,
+    to map hash and signature failures to their own exit codes). Accepts
+    exactly one encoding of each value.
 
     The document must have no duplicate keys, every schema field present with
     its exact JSON type (no "0" or 0.0 for an integer), integers within

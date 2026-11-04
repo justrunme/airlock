@@ -118,10 +118,9 @@ def pubkey(client):
 def check_receipt(client, receipt_id):
     r = client.get(f"/api/receipt/{receipt_id}")
     assert r.status_code == 200
-    receipt = load_receipt(r.text)
+    receipt = load_receipt(r.text, pubkey(client))
     payload = signed_payload(receipt.model_dump(by_alias=True))
     assert sha256(payload).hexdigest() == receipt.hash == receipt_id
-    pubkey(client).verify(bytes.fromhex(receipt.sig_ed25519), payload)
     return receipt
 
 
@@ -468,7 +467,7 @@ def test_replay_receipts_record_mode_and_verify(make):
     out = _replay(client)
     for s in out["steps"]:
         text = client.get(f"/api/receipt/{s['receipt_id']}").text
-        rec = load_receipt(text)
+        rec = load_receipt(text, pubkey(client))
         assert rec.context == {"mode": "replay_compromised", "planner": "scripted"}
         assert json.loads(text)["context"]["planner"] == "scripted"
 

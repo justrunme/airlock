@@ -14,7 +14,14 @@ from airlock.cli import (
     verify_chain,
     verify_receipt,
 )
-from airlock.receipt import ReceiptFormatError, ReceiptSigner, load_receipt
+from airlock.receipt import (
+    ReceiptFormatError,
+    ReceiptHashError,
+    ReceiptSignatureError,
+    ReceiptSigner,
+    load_receipt,
+    parse_receipt_unchecked,
+)
 from airlock.schemas import BlastRadius, BlastRadiusFactor, Decision, Execution
 
 
@@ -96,7 +103,7 @@ def test_malformed_receipt_is_schema_error(env, name):
     text = SCHEMA_CASES[name](raw)
     assert text != raw
     with pytest.raises(ReceiptFormatError):
-        load_receipt(text)
+        parse_receipt_unchecked(text)
     p = d / "r.json"
     p.write_text(text)
     assert verify_receipt(p, d / "pub") == EXIT_SCHEMA_ERROR
@@ -119,8 +126,35 @@ def test_equivalent_encodings_still_verify(env, fmt):
 
 def test_canonical_bytes_match_signed_digest(env):
     signer, _, raw = env
-    r = load_receipt(raw)
+    r = load_receipt(raw, signer.public_key)
     assert signer.verify(r)
+
+
+def test_load_receipt_requires_a_key(env):
+    # Review 5 M2: the public loader must never accept a receipt on parse alone.
+    _, _, raw = env
+    with pytest.raises(TypeError):
+        load_receipt(raw)  # type: ignore[call-arg]
+
+
+def test_load_receipt_rejects_wrong_hash(env):
+    signer, _, raw = env
+    doc = json.loads(raw)
+    doc["context"] = {"forged": "yes"}
+    with pytest.raises(ReceiptHashError):
+        load_receipt(json.dumps(doc), signer.public_key)
+    # the unchecked parser still accepts it, which is why it carries that name
+    parse_receipt_unchecked(json.dumps(doc))
+
+
+def test_load_receipt_rejects_wrong_signature_and_wrong_key(env):
+    signer, _, raw = env
+    doc = json.loads(raw)
+    doc["sig_ed25519"] = ("0" if doc["sig_ed25519"][0] != "0" else "1") + doc["sig_ed25519"][1:]
+    with pytest.raises(ReceiptSignatureError):
+        load_receipt(json.dumps(doc), signer.public_key)
+    with pytest.raises(ReceiptSignatureError):
+        load_receipt(raw, ReceiptSigner().public_key)
 
 
 def test_value_change_is_hash_mismatch(env):

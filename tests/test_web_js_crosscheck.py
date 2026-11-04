@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from airlock.receipt import canonical_json, load_receipt
+from airlock.receipt import canonical_json, parse_receipt_unchecked
 from airlock.web.chain import ReceiptChain, load_or_create_signer, public_key_hex
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,7 +34,7 @@ def test_receipt_fixture_is_current():
     on_disk = json.loads((VECTORS / "receipt_fixture.json").read_text())
     assert on_disk == make_js_fixtures.build(), "run python scripts/make_js_fixtures.py"
     for text in on_disk["receipts"]:
-        load_receipt(text)
+        parse_receipt_unchecked(text)
 
 
 def _decision(verdict: str) -> dict:
