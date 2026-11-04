@@ -99,11 +99,21 @@ class AgentLoop:
             },
         ]
 
-    def chat(self, messages: list[dict[str, str]], tools: bool = True) -> dict[str, Any] | None:
-        """Send chat request with retries."""
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: bool = True,
+        max_tokens: int = 4096,
+    ) -> dict[str, Any] | None:
+        """Send chat request with retries.
+
+        The default model is a reasoning model: it spends part of max_tokens on
+        reasoning before the answer, so keep max_tokens >= 2048.
+        """
         request_data: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
+            "max_tokens": max_tokens,
         }
 
         if tools:

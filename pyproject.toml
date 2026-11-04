@@ -17,7 +17,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+web = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+]
 dev = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "ruff>=0.17,<0.18",
@@ -25,6 +31,13 @@ dev = [
 
 [project.scripts]
 airlock = "airlock.cli:main"
+airlock-web = "airlock.web.app:main"
+
+[tool.setuptools.packages.find]
+include = ["airlock*"]
+
+[tool.setuptools.package-data]
+"airlock.web" = ["static/*", "static/vendor/*", "samples/*"]
 
 [build-system]
 requires = ["setuptools>=68.0"]
