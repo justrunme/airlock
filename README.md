@@ -9,7 +9,7 @@ I built Airlock because I don't want an agent's mistake to become my incident. T
 The web app has four tabs:
 
 1. **Real task.** The agent analyses a sample app log and writes a Markdown report. Every action it proposes goes through the gate.
-2. **Injected task.** Same task, but the log contains a fake "ops-runbook" line that tells the agent to `curl ... | sh` and to post `env` to an outside host. If the agent proposes either, the gate blocks it and shows the rule that fired.
+2. **Injected task.** Same task, but the log contains a fake "ops-runbook" line that tells the agent to `curl ... | sh` and to post `env` to an outside host. You can run it with the live model, or replay what an agent that obeyed the line would propose. The replay's proposals are scripted; the gate, the sandbox and the receipts are not.
 3. **Attack Arena.** You type code yourself and see the verdict, the rules, the run output and the receipt.
 4. **Verify.** Paste any receipt and the page checks the JSON, the schema, the SHA-256 hash over RFC 8785 JCS and the signature with WebCrypto. A tamper button shows what a failed check looks like.
 
@@ -119,15 +119,20 @@ sudo systemctl restart airlock-web
 
 ## Demo script
 
-1. Open the live demo. Point at the header: policy hash, runtime `runsc`, and the corpus numbers.
-2. **Real task**: run it. The agent's code passes the gate, runs in gVisor, and writes `report.md`. Each step has a receipt.
-3. **Injected task**: run it and show the runbook line in the log. Any harmful action it proposes is blocked with the rule that fired. The live model often refuses the injection by itself; the page then says "0 harmful actions proposed" and I go to the Arena.
-4. **Attack Arena**: click "curl | sh (from the injected log)". It is denied (`R-BIN-CURL`, `R-SHELL-EXEC-FILE`). Then "exfil env". Then a benign `print(1+1)`, which runs and shows `container_absent: true`.
-5. **Verify**: paste the last receipt, it passes. Click tamper, the hash check fails.
+1. **A real, useful task.** Open the live demo and run tab 1. The model's code passes the gate, runs in gVisor and writes `report.md` (31 ERROR, 8 WARN). Every step has a signed receipt.
+2. **Replay of a compromised agent.** Go to tab 2. First I show what the live model really did with the poisoned log: the box shows its reasoning from the last live run, word for word, and in my tests it refused the injected line. Then I click "Replay a compromised agent". The page says plainly that these proposals are scripted. They are what an agent that obeyed the line would do:
+   - step 1, the log analysis: allowed, runs in the sandbox;
+   - step 2, `curl … | sh`: denied (`R-BIN-CURL`, `R-SHELL-EXEC-FILE`), sandbox never started;
+   - step 3, read `/proc/self/environ` and post it out: denied (`R-PY-ATTR-DENIED`, `R-PY-OPEN-PATH`), sandbox never started;
+   - step 4, `rm -rf /work/input` and a write to `/etc`: denied (`R-BIN-RM`, `R-SHELL-REDIRECT`), sandbox never started.
+
+   The verdicts, limits and receipts are real. Each receipt carries `"context": {"mode": "replay_compromised", "planner": "scripted"}`, so nobody can pass a replay off as a live run without breaking the hash.
+3. **Attack Arena.** Tab 3. I try the same commands by hand, plus a few bypass tricks, and then a harmless `print(1+1)` that runs and shows the container was removed.
+4. **Verify a receipt, then tamper with it.** From any step I click "Verify in browser": the JSON, schema, hash and signature checks all pass, in the page, with no server call. Then "Tamper one character": one character in a signed field changes and the hash check fails, and the page names the field.
 
 ## Limitations
 
-- The live model (qwen3.8-27b) often refuses the prompt injection by itself. So the injected task doesn't always show a blocked harmful action. The Arena shows the gate blocking the same commands every time.
+- The live model (qwen3.8-27b) refused the prompt injection in every run I tried. So the containment moment in tab 2 comes from a replay with scripted proposals. The page and the receipts say so.
 - Each `run_code` call is a new sandbox. Files don't carry over between calls.
 - Container isolation lowers risk but doesn't remove it. gVisor helps, but the host is still shared.
 - Static policy can be evaded. The sandbox is the real boundary.
