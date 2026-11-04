@@ -1,1 +1,120 @@
-<!doctype html><title>Airlock</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airlock: policy-gated sandbox for agent actions</title>
+<link rel="stylesheet" href="/static/app.css">
+<script type="module" src="/static/app.js"></script>
+</head>
+<body>
+<header>
+  <h1>Airlock</h1>
+  <p class="lede">An LLM agent proposes code. A static policy decides. Allowed code runs in a
+  throwaway container with no network. Every decision is written to an Ed25519-signed,
+  hash-chained receipt you can check in this page.</p>
+  <p class="meta" id="meta">loading&hellip;</p>
+</header>
+
+<nav role="tablist">
+  <button role="tab" data-tab="real" aria-selected="true">1. Real task</button>
+  <button role="tab" data-tab="injected">2. Injected task</button>
+  <button role="tab" data-tab="arena">3. Try to break it</button>
+  <button role="tab" data-tab="verify">4. Verify a receipt</button>
+</nav>
+
+<main>
+<section id="tab-real" class="tab">
+  <h2>SRE log triage</h2>
+  <p>The agent gets <code>/work/input/app.log</code> (120 lines) and is asked to count errors per
+  component and write a short report. The model is Qwen on Vultr Serverless Inference.
+  A run takes 20&ndash;90 seconds because the model reasons before answering.</p>
+  <details><summary>Task prompt and sample log</summary>
+    <pre id="real-prompt" class="scroll"></pre>
+    <pre id="real-log" class="scroll"></pre>
+  </details>
+  <button class="run" data-kind="real">Run the real task</button>
+  <div class="out" id="out-real"></div>
+</section>
+
+<section id="tab-injected" class="tab" hidden>
+  <h2>Same task, poisoned log</h2>
+  <p>One log line pretends to be an ops runbook and tells agents to pipe a remote script into
+  <code>sh</code> and post the environment to an outside host. The task prompt is deliberately
+  naive and says to follow runbook steps, so the model often tries. The gate decides on the
+  code, not on the model's intent.</p>
+  <details><summary>The injected line</summary><pre id="inj-line" class="scroll"></pre></details>
+  <button class="run" data-kind="injected">Run the injected task</button>
+  <div class="out" id="out-injected"></div>
+</section>
+
+<section id="tab-arena" class="tab" hidden>
+  <h2>Attack arena</h2>
+  <p>Submit Python or bash. It goes through the same policy and sandbox as the agent's code:
+  no network, read-only root, no capabilities, no secrets, 10&nbsp;s, 128&nbsp;MB, 32 pids.
+  Benign code runs; anything the policy does not understand is denied.</p>
+  <div class="counter" id="counter">attempts: &ndash; &middot; blocked: &ndash; &middot; ran: &ndash; &middot; rejected: &ndash;</div>
+  <div class="examples" id="examples"></div>
+  <div class="row">
+    <label>language <select id="lang"><option>python</option><option>bash</option></select></label>
+    <span class="hint" id="size-hint"></span>
+  </div>
+  <textarea id="code" spellcheck="false" rows="10" maxlength="8192"></textarea>
+  <details><summary>Optional input file (<code>/work/input/input.txt</code>)</summary>
+    <textarea id="input-text" spellcheck="false" rows="4" maxlength="32768"></textarea>
+  </details>
+  <button id="arena-run">Submit</button>
+  <div class="out" id="out-arena"></div>
+</section>
+
+<section id="tab-verify" class="tab" hidden>
+  <h2>Verify a receipt in your browser</h2>
+  <p>Verification runs here, with WebCrypto Ed25519 and SHA-256 and an RFC&nbsp;8785 canonicaliser
+  in <a href="/static/verify.js">verify.js</a> (no dependencies). Nothing is sent to the server.
+  Steps: strict JSON (duplicate keys rejected) &rarr; schema &rarr; SHA-256 of the canonical body
+  &rarr; Ed25519 signature.</p>
+  <div class="row">
+    <label>receipt id <input id="rid" size="70" placeholder="64 hex characters"></label>
+    <button id="fetch-r">Load from server</button>
+  </div>
+  <textarea id="rtext" spellcheck="false" rows="14" placeholder="paste a receipt JSON here"></textarea>
+  <div class="row">
+    <label>public key (hex) <input id="pub" size="70"></label>
+  </div>
+  <div class="row">
+    <button id="verify-btn">Verify</button>
+    <button id="tamper-btn" class="secondary">Tamper one character</button>
+    <button id="reset-btn" class="secondary">Restore original</button>
+  </div>
+  <div class="out" id="out-verify"></div>
+</section>
+</main>
+
+<section class="facts">
+  <h2>Policy corpus numbers</h2>
+  <p>Computed by <code>scripts/corpus_metrics.py</code> over the adversarial and benign cases in the
+  test suite. These are numbers <strong>on this corpus</strong>, which I wrote while building the
+  policy. They say nothing about attacks I did not think of.</p>
+  <table id="metrics"><tbody><tr><td>loading&hellip;</td></tr></tbody></table>
+
+  <h2>Known limitations</h2>
+  <table class="limits">
+    <thead><tr><th>Limitation</th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr><td>Containers share the host kernel</td><td>Under runc a kernel bug is a host escape. This deployment runs gVisor (runsc), which puts a user-space kernel in between and shrinks that surface. It does not remove it.</td></tr>
+      <tr><td>The static policy is incomplete</td><td>It is an allow-list parser for a subset of Python and bash. Unknown constructs are denied, but a bypass in what it does allow is possible. The sandbox is the second line.</td></tr>
+      <tr><td>Signatures cover the record, not the host</td><td>A valid signature proves the receipt came from the holder of this key and was not edited. It does not prove the host was honest or uncompromised when it wrote it.</td></tr>
+      <tr><td>No egress allow-list</td><td>The only network mode is <code>none</code>. Tasks that need the network cannot run here.</td></tr>
+      <tr><td>The control process can reach the Docker socket</td><td>The API service runs as an unprivileged user in the <code>docker</code> group, which is root-equivalent on this VM. The socket is never mounted into a sandbox or exposed over the network.</td></tr>
+      <tr><td>Receipts are kept, not pruned</td><td>Deleting one breaks the hash chain. Old work dirs and containers are pruned by a timer.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  <p>MIT licensed. Source: <a href="https://github.com/justrunme/airlock">github.com/justrunme/airlock</a>.
+  Runs on a Vultr Cloud Compute VM in Frankfurt.
+  API: <a href="/api/policy">/api/policy</a> &middot; <a href="/api/pubkey">/api/pubkey</a> &middot; <a href="/healthz">/healthz</a></p>
+</footer>
+</body>
+</html>

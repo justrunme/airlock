@@ -1,0 +1,16 @@
+{
+  "scope": "on this corpus only; not a general detection rate",
+  "sources": [
+    "test_policy_corpus_expanded.py",
+    "test_policy_corpus_r4.py"
+  ],
+  "corpus_sha256": "0764058365d974c6844b83009d855d5e409ed53c24d39458cf4e8df6c300a485",
+  "policy_sha256": "450065b234ae1726feee3c459a8393ac623e9d8f8324b8cddc78374c25f27e12",
+  "adversarial": 255,
+  "benign": 154,
+  "false_allow": 0,
+  "false_deny": 0,
+  "false_allow_rate": 0.0,
+  "false_deny_rate": 0.0,
+  "misses": []
+}

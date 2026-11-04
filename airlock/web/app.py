@@ -225,6 +225,13 @@ def create_app(
             "default": "deny: anything the allow-lists do not understand",
         }
 
+    @app.get("/api/samples")
+    def samples():
+        real = tasks.sample_log(False).decode()
+        injected = tasks.sample_log(True).decode().splitlines()
+        extra = [line for line in injected if line not in set(real.splitlines())]
+        return {"task_prompt": tasks.TASK_PROMPT, "log": real, "injected_line": "\n".join(extra)}
+
     @app.get("/api/receipt/{receipt_id}")
     def get_receipt(receipt_id: str):
         try:

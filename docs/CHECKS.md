@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **677** in 16 files.
+Total collected tests: **679** in 16 files.
 
 | File | Tests |
 |------|------:|
@@ -24,7 +24,7 @@ Total collected tests: **677** in 16 files.
 | `tests/test_sandbox_unit.py` | 33 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
-| `tests/test_web_api.py` | 45 |
+| `tests/test_web_api.py` | 47 |
 | `tests/test_web_js_crosscheck.py` | 9 |
 
 ## `tests/test_agent.py`
@@ -769,6 +769,8 @@ Total collected tests: **677** in 16 files.
 | `TestReceipts::test_corrupt_stored_receipt_not_served` |  |
 | `TestReceipts::test_chain_append_is_serialised` |  |
 | `test_sandbox_never_gets_inference_key` | The docker create command carries no host environment besides LANG/LC_ALL. |
+| `test_samples_show_prompt_and_injected_line` |  |
+| `test_static_assets_served_without_external_refs` |  |
 
 ## `tests/test_web_js_crosscheck.py`
 
