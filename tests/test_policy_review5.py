@@ -1,4 +1,4 @@
-"""Regression tests for the fifth independent adversarial review (H1).
+"""Regression tests for the fifth independent adversarial review (H1, H2).
 
 Each DENY case was ALLOW before the fix. The ALLOW cases pin that the fix
 did not turn ordinary log work into a false DENY.
@@ -41,7 +41,30 @@ PY_DENY = [
     "help()",
 ]
 
-SH_DENY: list[str] = []
+SH_DENY = [
+    # H2: test / [ operands go through the path allow-list
+    "test -r /etc/passwd && echo yes",
+    "test -e ../etc",
+    "test -e .. && echo y",
+    "test /work/input/a -nt /etc/passwd",
+    'test -e /et""c/passwd',
+    r"test -e /e\tc/passwd",
+    "test -e ~root",
+    "test -d ~",
+    # shell pathname expansion in echo/printf lists directories
+    "echo /etc/*",
+    "echo /e*",
+    "printf '%s\\n' /proc/*",
+    "echo /work/input/../../*",
+    # awk ARGV rewriting opens files the path check never saw
+    "awk 'BEGIN{ARGV[1]=\"/etc/passwd\"} {print}' /work/input/a.log",
+    "awk 'BEGIN{ARGC=2; ARGV[1]=\"/etc/passwd\"} {print}'",
+    "awk '{print}' ARGV=/etc/passwd /work/input/a.log",
+    # printf hex strings only become paths through expansion, which stays denied
+    'printf -v p "%b" "\\x2fetc\\x2fpasswd"; cat $p',
+    'cat $(printf "%b" "\\x2fetc\\x2fpasswd")',
+    "echo /etc/passwd | xargs cat",
+]
 
 PY_ALLOW = [
     P + 'for f in Path("/work/input").glob("*.log"):\n print(f.read_text()[:10])',
@@ -51,7 +74,15 @@ PY_ALLOW = [
     P + 'print(Path("/work/input/app.log").stat().st_size)',
 ]
 
-SH_ALLOW: list[str] = []
+SH_ALLOW = [
+    "test -e /work/input/app.log && echo ok",
+    "test -n x",
+    "test -f app.log || echo missing",
+    "echo *",
+    "cat /work/input/*.log | wc -l",
+    'printf "%b" "\\x2fetc\\x2fpasswd"',
+    "echo done > /work/out/x.txt",
+]
 
 
 @pytest.fixture(scope="module")
