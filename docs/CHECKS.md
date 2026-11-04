@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1292** in 18 files.
+Total collected tests: **1295** in 19 files.
 
 | File | Tests |
 |------|------:|
@@ -27,6 +27,7 @@ Total collected tests: **1292** in 18 files.
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
 | `tests/test_web_api.py` | 67 |
+| `tests/test_web_copy.py` | 3 |
 | `tests/test_web_js_crosscheck.py` | 51 |
 
 ## `tests/test_agent.py`
@@ -1354,6 +1355,14 @@ Total collected tests: **1292** in 18 files.
 | `test_blocked_steps_carry_the_fields_the_strip_shows` |  |
 | `test_blocked_card_claims_nothing_until_filled` |  |
 | `test_share_metadata_points_at_the_static_image` |  |
+
+## `tests/test_web_copy.py`
+
+| Test | Description |
+|------|-------------|
+| `test_process_cap_is_named_rlimit_nproc` | The job's process cap is RLIMIT_NPROC, not a docker pids count. |
+| `test_no_bare_zero_false_allow_claim` | Every '0 false-ALLOW' must be scoped to a corpus and the independent corpus named. |
+| `test_corpus_table_renders_independent_metrics` | The corpus table must show the independent corpus from metrics.json. |
 
 ## `tests/test_web_js_crosscheck.py`
 

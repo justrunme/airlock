@@ -133,7 +133,7 @@ function receiptBox(id, open = false) {
 // ---------- replay of a compromised agent
 function limitsText(caps, net) {
   const c = caps ?? {};
-  return `cpus ${c.cpus} · mem ${c.mem_mb} MB · pids ${c.pids} · timeout ${c.timeout_s}s · network ${net ?? "none"}`;
+  return `cpus ${c.cpus} · mem ${c.mem_mb} MB · ${c.pids} processes (RLIMIT_NPROC) · timeout ${c.timeout_s}s · network ${net ?? "none"}`;
 }
 
 function renderReplay(out, target) {
@@ -485,12 +485,24 @@ async function refreshMeta() {
     $("#real-log").textContent = s.log;
     $("#inj-line").textContent = s.injected_line;
   } catch {}
+  function independentRows(i) {
+    if (!i) return [];
+    const pre = i.pre_fix;
+    return [
+      el("tr", {}, el("th", { colspan: 4 }, "independent review corpus")),
+      el("tr", {}, el("th", {}, "adversarial cases"), el("td", {}, i.adversarial), el("th", {}, "false ALLOW"),
+        el("td", {}, `${i.false_allow} (${i.false_allow_security_relevant} security-relevant)` + (pre ? `; before fixes ${pre.false_allow} (${pre.false_allow_security_relevant} security-relevant)` : ""))),
+      el("tr", {}, el("th", {}, "benign cases"), el("td", {}, i.benign), el("th", {}, "false DENY"), el("td", {}, `${i.false_deny}`)),
+      el("tr", {}, el("td", { colspan: 4, class: "hint" }, `independent corpus: ${i.scope}. corpus ${i.corpus_sha256.slice(0, 12)}…`)),
+    ];
+  }
   try {
     const m = await (await fetch("/static/metrics.json")).json();
     $("#metrics").replaceChildren(el("tbody", {},
       el("tr", {}, el("th", {}, "adversarial cases"), el("td", {}, m.adversarial), el("th", {}, "false ALLOW"), el("td", {}, `${m.false_allow} (${(m.false_allow_rate * 100).toFixed(1)}%)`)),
       el("tr", {}, el("th", {}, "benign cases"), el("td", {}, m.benign), el("th", {}, "false DENY"), el("td", {}, `${m.false_deny} (${(m.false_deny_rate * 100).toFixed(1)}%)`)),
-      el("tr", {}, el("td", { colspan: 4, class: "hint" }, `${m.scope}. policy ${m.policy_sha256.slice(0, 12)}…, corpus ${m.corpus_sha256.slice(0, 12)}…`))));
+      el("tr", {}, el("td", { colspan: 4, class: "hint" }, `my own corpus: ${m.scope}. policy ${m.policy_sha256.slice(0, 12)}…, corpus ${m.corpus_sha256.slice(0, 12)}…`)),
+      ...independentRows(m.independent)));
   } catch {}
   try { showRefusal((await api("/api/last_injected_run")).record); } catch {}
   refreshStats();
