@@ -1,6 +1,7 @@
 """Receipt signing and verification."""
 
 import json
+import math
 import re
 from hashlib import sha256
 from pathlib import Path
@@ -42,6 +43,8 @@ def _reject_constant(name: str) -> Any:
 def _parse_float(token: str) -> float:
     # integer fields reject floats in the strict schema; -0.0 is a second encoding of 0
     value = float(token)
+    if not math.isfinite(value):
+        raise ReceiptFormatError(f"number out of range: {token[:32]}")
     if value == 0 and token.startswith("-"):
         raise ReceiptFormatError("negative zero is not allowed")
     return value
