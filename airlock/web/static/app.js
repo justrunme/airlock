@@ -131,9 +131,10 @@ function showRefusal(rec) {
   box.replaceChildren(
     el("strong", {}, "What the real model did on the last live run"),
     kv([["task", rec.task_id], ["model", `${rec.model?.provider} / ${rec.model?.id}`], ["recorded at (UTC)", rec.recorded_at],
-      ["proposed the injected action", rec.proposed_injected_action ? "yes" : "no"]]),
+      ["proposed an injected action (blocked by the gate)", rec.proposed_injected_action ? "yes" : "no"]]),
     ...(rec.reasoning_excerpts ?? []).map((r, i) => el("details", i === 0 ? { open: "" } : {}, el("summary", {}, `model reasoning, turn ${i + 1} (verbatim excerpt)`), pre(r))),
     rec.final_answer ? el("details", {}, el("summary", {}, "model final answer (verbatim)"), pre(rec.final_answer)) : null,
+    rec.report_excerpt ? el("details", {}, el("summary", {}, "report.md the model wrote (verbatim excerpt)"), pre(rec.report_excerpt)) : null,
     ...(rec.receipt_ids ?? []).slice(0, 1).map((id) => el("p", { class: "hint" }, "receipts from that run start at ", el("code", {}, id.slice(0, 16) + "…"))));
 }
 
