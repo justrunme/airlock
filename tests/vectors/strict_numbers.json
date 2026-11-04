@@ -1,0 +1,15 @@
+[
+  {"name": "receipt_v 1.0", "find": "\"receipt_v\":1,", "replace": "\"receipt_v\":1.0,", "ok": false},
+  {"name": "receipt_v 1e0", "find": "\"receipt_v\":1,", "replace": "\"receipt_v\":1e0,", "ok": false},
+  {"name": "receipt_v 10E-1", "find": "\"receipt_v\":1,", "replace": "\"receipt_v\":10E-1,", "ok": false},
+  {"name": "receipt_v -0", "find": "\"receipt_v\":1,", "replace": "\"receipt_v\":-0,", "ok": false},
+  {"name": "receipt_v 2^53+1", "find": "\"receipt_v\":1,", "replace": "\"receipt_v\":9007199254740993,", "ok": false},
+  {"name": "decision.schema_v 1.0", "find": "{\"schema_v\":1,\"action_id\"", "replace": "{\"schema_v\":1.0,\"action_id\"", "ok": false},
+  {"name": "blast_radius.score 80.0", "find": "\"score\":80,", "replace": "\"score\":80.0,", "ok": false},
+  {"name": "caps big int", "find": "\"pids\":32", "replace": "\"pids\":9007199254740993", "ok": false},
+  {"name": "caps big negative int", "find": "\"pids\":32", "replace": "\"pids\":-9007199254740993", "ok": false},
+  {"name": "caps -0", "find": "\"pids\":32", "replace": "\"pids\":-0", "ok": false},
+  {"name": "caps -0.0", "find": "\"cpus\":0.5", "replace": "\"cpus\":-0.0", "ok": false},
+  {"name": "caps cpus 5e-1 (same value, free-form field)", "find": "\"cpus\":0.5", "replace": "\"cpus\":5e-1", "ok": true},
+  {"name": "unchanged", "find": "\"receipt_v\":1,", "replace": "\"receipt_v\":1,", "ok": true}
+]

@@ -8,8 +8,15 @@ import sys
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from airlock.receipt import canonical_json, parse_receipt_unchecked
+from airlock.receipt import (
+    ReceiptFormatError,
+    ReceiptVerifyError,
+    canonical_json,
+    load_receipt,
+    parse_receipt_unchecked,
+)
 from airlock.web.chain import ReceiptChain, load_or_create_signer, public_key_hex
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -120,3 +127,31 @@ def test_receipt_without_context_keeps_old_encoding(tmp_path):
     chain = ReceiptChain(tmp_path / "r", load_or_create_signer(tmp_path / "k"))
     receipt = chain.append({"task_id": "t", "action_id": "a1", "decision": _decision("deny")})
     assert "context" not in json.loads(chain.get_text(receipt.hash))
+
+
+STRICT_NUMBERS = json.loads((VECTORS / "strict_numbers.json").read_text())
+
+
+@pytest.mark.parametrize("vec", STRICT_NUMBERS, ids=lambda v: v["name"])
+def test_strict_numbers_python_matches_vector(vec):
+    fixture = json.loads((VECTORS / "receipt_fixture.json").read_text())
+    r0 = fixture["receipts"][0]
+    assert vec["find"] in r0
+    text = r0.replace(vec["find"], vec["replace"])
+    key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(fixture["pubkey_hex"]))
+    if vec["ok"]:
+        load_receipt(text, key)
+    else:
+        with pytest.raises(ReceiptFormatError) as e:
+            load_receipt(text, key)
+        assert not isinstance(e.value, ReceiptVerifyError), "must fail on format, not crypto"
+
+
+@needs_node
+@pytest.mark.parametrize("vec", STRICT_NUMBERS, ids=lambda v: v["name"])
+def test_strict_numbers_node_matches_python(tmp_path, vec):
+    fixture = json.loads((VECTORS / "receipt_fixture.json").read_text())
+    p = tmp_path / "r.json"
+    p.write_text(fixture["receipts"][0].replace(vec["find"], vec["replace"]))
+    code, res = _node(p, fixture["pubkey_hex"])
+    assert res["ok"] is vec["ok"] and (code == 0) is vec["ok"], res

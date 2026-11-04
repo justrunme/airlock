@@ -110,3 +110,14 @@ test("schema: unknown field, missing field, bad hex are reported by path", async
     assert.equal(failed(res).path, path);
   }
 });
+
+// Review 5: one encoding per number. The same vectors run against the Python
+// loader in tests/test_web_js_crosscheck.py, so both verifiers agree.
+for (const v of vec("strict_numbers.json")) {
+  test(`strict numbers: ${v.name}`, async () => {
+    assert.ok(r0.includes(v.find), v.find);
+    const res = await verifyReceipt(r0.replace(v.find, v.replace), PUB);
+    assert.equal(res.ok, v.ok, JSON.stringify(failed(res)));
+    if (!v.ok) assert.ok(["json", "schema"].includes(failed(res).id), failed(res).id);
+  });
+}

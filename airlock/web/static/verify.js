@@ -12,9 +12,13 @@ export class ReceiptError extends Error {
   }
 }
 
+// paths whose number token had a fraction or exponent, keyed by parsed root
+const FLOAT_TOKENS = new WeakMap();
+
 // ---- strict JSON parser: rejects duplicate keys, NaN/Infinity, trailing data
 export function parseStrict(text, { safeIntegers = true } = {}) {
   let i = 0;
+  const notIntLiteral = new Set();
   const err = (msg) => {
     throw new ReceiptError("json", `${msg} at offset ${i}`);
   };
@@ -82,14 +86,23 @@ export function parseStrict(text, { safeIntegers = true } = {}) {
     i += m[0].length;
     const n = Number(m[0]);
     if (!Number.isFinite(n)) throw new ReceiptError("json", "number out of range", path);
-    if (safeIntegers && /^-?\d+$/.test(m[0]) && (m[0][0] === "-" ? -BigInt(m[0]) : BigInt(m[0])) > MAX_SAFE) {
-      throw new ReceiptError("json", "integer beyond +/-2^53", path);
+    if (safeIntegers) {
+      // one encoding per value: no -0, integers within +/-2^53, and remember
+      // where a fraction or exponent was used (1.0, 1e0) so integer fields reject it
+      if (n === 0 && m[0][0] === "-") throw new ReceiptError("json", "negative zero is not allowed", path);
+      if (/^-?\d+$/.test(m[0])) {
+        const big = BigInt(m[0]);
+        if (big > MAX_SAFE || -big > MAX_SAFE) throw new ReceiptError("json", "integer beyond +/-2^53", path);
+      } else {
+        notIntLiteral.add(path);
+      }
     }
     return n;
   };
   const v = value("");
   ws();
   if (i !== text.length) err("trailing data");
+  if (v !== null && typeof v === "object") FLOAT_TOKENS.set(v, notIntLiteral);
   return v;
 }
 
@@ -151,6 +164,13 @@ function checkFields(obj, spec, prefix, optional = {}) {
 
 export function checkSchema(r) {
   if (!T.obj(r)) throw new ReceiptError("schema", "receipt must be a JSON object");
+  // every typed number in a receipt is an integer (as in airlock.schemas);
+  // only the free-form decision.caps may hold a fraction such as cpus: 0.5
+  for (const p of FLOAT_TOKENS.get(r) ?? []) {
+    if (!/^decision\.caps(?:[.[]|$)/.test(p)) {
+      throw new ReceiptError("schema", "integer field written with a fraction or exponent", p);
+    }
+  }
   checkFields(r, RECEIPT_FIELDS, "", OPTIONAL_FIELDS);
   checkFields(r.decision, DECISION_FIELDS, "decision.");
   if (!/^[0-9a-f]{64}$/.test(r.hash)) throw new ReceiptError("schema", "must be 64 lowercase hex", "hash");

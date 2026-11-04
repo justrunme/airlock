@@ -39,6 +39,20 @@ def _reject_constant(name: str) -> Any:
     raise ReceiptFormatError(f"non-finite number {name}")
 
 
+def _parse_float(token: str) -> float:
+    # integer fields reject floats in the strict schema; -0.0 is a second encoding of 0
+    value = float(token)
+    if value == 0 and token.startswith("-"):
+        raise ReceiptFormatError("negative zero is not allowed")
+    return value
+
+
+def _parse_int(token: str) -> int:
+    if token == "-0":
+        raise ReceiptFormatError("negative zero is not allowed")
+    return int(token)
+
+
 def _check_ints(value: Any, where: str = "$") -> None:
     if isinstance(value, bool):
         return
@@ -56,7 +70,11 @@ def parse_strict_json(text: str) -> Any:
     """Parse JSON rejecting duplicate keys, NaN/Infinity and unsafe integers."""
     try:
         data = json.loads(
-            text, object_pairs_hook=_reject_duplicates, parse_constant=_reject_constant
+            text,
+            object_pairs_hook=_reject_duplicates,
+            parse_constant=_reject_constant,
+            parse_float=_parse_float,
+            parse_int=_parse_int,
         )
     except ReceiptFormatError:
         raise
