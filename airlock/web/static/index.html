@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Airlock: policy-gated sandbox for agent actions</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/app.css">
 <script type="module" src="/static/app.js"></script>
 </head>
@@ -66,6 +67,7 @@
   <p>Submit Python or bash. It goes through the same policy and sandbox as the agent's code:
   no network, read-only root, no capabilities, no secrets, 10&nbsp;s, 128&nbsp;MB, 32 pids.
   Benign code runs; anything the policy does not understand is denied.</p>
+  <p class="hint">The counter below is global: it adds up every submission from every visitor to this server, not just yours.</p>
   <div class="counter" id="counter">attempts: &ndash; &middot; blocked: &ndash; &middot; ran: &ndash; &middot; rejected: &ndash;</div>
   <div class="examples" id="examples"></div>
   <div class="row">
@@ -81,6 +83,7 @@
 </section>
 
 <section id="tab-verify" class="tab" hidden>
+  <p id="verify-banner" class="banner" role="status" hidden></p>
   <h2>Verify a receipt in your browser</h2>
   <p>Verification runs here, with WebCrypto Ed25519 and SHA-256 and an RFC&nbsp;8785 canonicaliser
   in <a href="/static/verify.js">verify.js</a> (no dependencies). Nothing is sent to the server.

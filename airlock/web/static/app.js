@@ -100,6 +100,7 @@ function renderReplay(out, target) {
   const blocked = out.steps.filter((s) => s.verdict !== "allow");
   target.append(el("p", {}, badge(blocked.length ? "deny" : "allow"),
     `${out.steps.length} scripted proposals, ${blocked.length} blocked by the gate, ${out.steps.length - blocked.length} ran in the sandbox · task ${out.task_id} · ${out.elapsed_s}s`));
+  if (out.log_note) target.append(el("p", { class: "hint" }, out.log_note));
   for (const s of out.steps) {
     const card = el("div", { class: "card" },
       el("div", { class: "step-title" }, el("strong", {}, s.label), " ", badge(s.intent === "legitimate" ? "legitimate" : "injected", s.intent === "legitimate" ? "neutral" : "fail")),
@@ -145,7 +146,7 @@ $("#replay-run").addEventListener("click", async () => {
   target.replaceChildren(el("p", { class: "spinner" }, "replaying: every proposal goes through the real gate"));
   try { renderReplay(await api("/api/task", { kind: "injected", mode: "replay_compromised" }), target); }
   catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); }
-  finally { b.disabled = false; }
+  finally { b.disabled = false; refreshMeta(); }
 });
 
 function renderTask(out, target) {
@@ -160,11 +161,50 @@ function renderTask(out, target) {
     for (const a of t.actions ?? []) c.append(renderStep(a));
     target.append(c);
   }
-  const steps = out.turns.flatMap((t) => t.actions ?? []).filter((a) => a.verdict);
-  const blocked = steps.filter((a) => a.verdict !== "allow");
-  target.prepend(el("p", {}, badge(blocked.length ? "deny" : "allow"),
-    `${steps.length} action(s) proposed, ${blocked.length} blocked by the gate`));
+  target.prepend(headline(out.outcome));
   if (out.final_answer) target.append(el("div", { class: "hint" }, "final answer:"), pre(out.final_answer));
+}
+
+function headlineText(o) {
+  const blk = `${o.blocked} of ${o.proposed} proposed action${o.proposed === 1 ? "" : "s"} blocked by the gate`;
+  switch (o.state) {
+    case "completed": return ["completed", "allow", `— ${blk}`];
+    case "all_blocked": return ["all blocked", "deny", `— all ${o.proposed} proposed action${o.proposed === 1 ? " was" : "s were"} blocked by the gate; nothing ran`];
+    case "no_actions": return ["no actions", "neutral", "— the model answered without proposing any code"];
+    default: return ["failed", "fail", `— the task did not finish (${blk}, ${o.ran_ok} ran successfully)`];
+  }
+}
+function headline(o) {
+  if (!o) return el("p", {}, "");
+  const [label, cls, text] = headlineText(o);
+  return el("p", { class: "headline" }, badge(label, cls), text);
+}
+
+// ---------- progress of a live run (polls the real loop state)
+const PHASE = { starting: "queued", model: "waiting for the model", sandbox: "running an action through the gate and sandbox" };
+function startProgress(target) {
+  const pid = [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const t0 = performance.now();
+  const line = el("span", {}, "starting");
+  const list = el("ol", { class: "turns" });
+  target.replaceChildren(el("div", { class: "card progress" }, el("div", {}, el("span", { class: "spin", "aria-hidden": "true" }), line), list));
+  let last = null;
+  const tick = async () => {
+    const secs = Math.round((performance.now() - t0) / 1000);
+    try {
+      const r = await fetch(`/api/task/progress/${pid}`);
+      if (r.ok) last = await r.json();
+    } catch {}
+    if (last && last.turn > 0) {
+      line.textContent = ` turn ${last.turn} of at most ${last.max_turns}: ${PHASE[last.phase] ?? last.phase} · ${last.actions} action(s) so far · ${secs}s elapsed`;
+      while (list.children.length < last.turn) list.append(el("li", {}, `turn ${list.children.length + 1}`));
+      [...list.children].forEach((li, i) => { li.className = i + 1 < last.turn ? "done" : "now"; });
+    } else line.textContent = ` ${last ? PHASE[last.phase] ?? last.phase : "starting"} · ${secs}s elapsed`;
+  };
+  // the run registers its progress id when the POST arrives, so the first poll waits a beat
+  line.textContent = " starting · 0s elapsed";
+  const h = setInterval(tick, 1500);
+  return { pid, stop: () => clearInterval(h) };
 }
 
 // ---------- tasks
@@ -172,13 +212,15 @@ for (const b of document.querySelectorAll("button.run")) {
   b.addEventListener("click", async () => {
     const target = $(`#out-${b.dataset.kind}`);
     b.disabled = true;
-    target.replaceChildren(el("p", { class: "spinner" }, "running: the model is thinking"));
+    const prog = startProgress(target);
     try {
-      renderTask(await api("/api/task", { kind: b.dataset.kind }), target);
+      const out = await api("/api/task", { kind: b.dataset.kind, progress_id: prog.pid });
+      prog.stop();
+      renderTask(out, target);
       if (b.dataset.kind === "injected") showRefusal((await api("/api/last_injected_run")).record);
     }
-    catch (e) { target.replaceChildren(el("p", { class: "err" }, e.message)); }
-    finally { b.disabled = false; }
+    catch (e) { prog.stop(); target.replaceChildren(el("p", { class: "err" }, e.message)); }
+    finally { b.disabled = false; refreshMeta(); }
   });
 }
 
@@ -209,7 +251,7 @@ sizeHint();
 
 function showStats(s) {
   if (!s) return;
-  $("#counter").textContent = `attempts: ${s.attempts} · blocked by policy: ${s.blocked_by_policy} · ran in sandbox: ${s.ran_in_sandbox} · rejected (malformed/oversize): ${s.rejected}`;
+  $("#counter").textContent = `all visitors, all time — attempts: ${s.attempts} · blocked by policy: ${s.blocked_by_policy} · ran in sandbox: ${s.ran_in_sandbox} · rejected (malformed/oversize): ${s.rejected}`;
 }
 async function refreshStats() { try { showStats(await api("/api/arena/stats")); } catch {} }
 
@@ -227,12 +269,22 @@ $("#arena-run").addEventListener("click", async () => {
   } catch (e) {
     target.replaceChildren(el("p", { class: "err" }, e.message));
     refreshStats();
-  } finally { b.disabled = false; }
+  } finally { b.disabled = false; refreshMeta(); }
 });
 
 // ---------- verify
-async function loadReceipt(id, tamper = false) {
+async function loadReceipt(id, tamper = false, cue = true) {
   showTab("verify");
+  if (cue) {
+    const ban = $("#verify-banner");
+    ban.textContent = tamper
+      ? `Loaded receipt ${id.slice(0, 16)}… into the verifier and changed one character. Expect it to fail.`
+      : `Loaded receipt ${id.slice(0, 16)}… into the verifier.`;
+    ban.hidden = false;
+    const panel = $("#tab-verify");
+    panel.classList.remove("flash"); void panel.offsetWidth; panel.classList.add("flash");
+    ban.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   $("#rid").value = id;
   const out = $("#out-verify");
   try {
@@ -267,7 +319,7 @@ async function runVerify() {
   out.replaceChildren(card);
 }
 
-$("#fetch-r").addEventListener("click", () => loadReceipt($("#rid").value.trim()));
+$("#fetch-r").addEventListener("click", () => loadReceipt($("#rid").value.trim(), false, false));
 $("#verify-btn").addEventListener("click", runVerify);
 $("#reset-btn").addEventListener("click", () => { if (state.original) $("#rtext").value = state.original; runVerify(); });
 $("#tamper-btn").addEventListener("click", () => tamperOne());
@@ -284,14 +336,21 @@ function tamperOne() {
   runVerify();
 }
 
+async function refreshMeta() {
+  try {
+    const h = await api("/healthz");
+    $("#meta").textContent = `signing key ${PUBKEY} · ${h.receipts} receipts in chain · head ${h.chain_head ?? "none"}`;
+  } catch {}
+}
+
 // ---------- boot
 (async () => {
   try {
-    const [pk, h] = await Promise.all([api("/api/pubkey"), api("/healthz")]);
-    PUBKEY = pk.public_key_hex;
+    PUBKEY = (await api("/api/pubkey")).public_key_hex;
     $("#pub").value = PUBKEY;
-    $("#meta").textContent = `signing key ${PUBKEY} · ${h.receipts} receipts in chain · head ${h.chain_head ?? "none"}`;
   } catch (e) { $("#meta").textContent = `API unavailable: ${e.message}`; }
+  await refreshMeta();
+  setInterval(refreshMeta, 30000);
   try {
     const s = await api("/api/samples");
     $("#real-prompt").textContent = s.task_prompt;

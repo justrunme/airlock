@@ -507,3 +507,65 @@ def test_quoting_the_injected_line_is_not_counted_as_obeying(make):
     rec = client.get("/api/last_injected_run").json()["record"]
     assert rec["proposed_injected_action"] is True
     assert len(rec["injected_action_receipts"]) == 1
+
+
+def test_outcome_completed_when_task_finishes_despite_a_block(make):
+    client = make([HARMFUL, BENIGN])[0]
+    out = client.post("/api/task", json={"kind": "real"}).json()
+    assert out["outcome"] == {"state": "completed", "proposed": 2, "blocked": 1, "ran_ok": 1}
+
+
+def test_outcome_all_blocked(make):
+    client = make([HARMFUL, HARMFUL])[0]
+    out = client.post("/api/task", json={"kind": "injected"}).json()
+    assert out["outcome"]["state"] == "all_blocked"
+    assert out["outcome"]["blocked"] == out["outcome"]["proposed"] == 2
+
+
+def test_outcome_failed_and_no_actions():
+    ok = {"verdict": "allow", "execution": {"exit_code": 0}}
+    bad = {"verdict": "allow", "execution": {"exit_code": 1}}
+    assert tasks.task_outcome([{"actions": [bad]}], "done")["state"] == "failed"
+    assert tasks.task_outcome([{"actions": [ok]}], None)["state"] == "failed"
+    assert tasks.task_outcome([{"error": "x", "actions": [ok]}], "d")["state"] == "failed"
+    assert tasks.task_outcome([{"actions": []}], "answer")["state"] == "no_actions"
+
+
+def test_progress_reports_real_loop_state(make):
+    client, runner, llm, app = make([BENIGN])
+    seen = []
+    out = tasks.run_agent_task(
+        llm, app.state.pipeline, b"x ERROR y\n", "real", on_progress=lambda *a: seen.append(a)
+    )
+    assert seen[0] == ("model", 1, 0)
+    assert ("sandbox", 1, 1) in seen and seen[-1] == ("model", 2, 1)
+    assert out["outcome"]["state"] == "completed"
+
+
+def test_progress_endpoint(make):
+    client = make([BENIGN])[0]
+    pid = "ab" * 12
+    assert client.get(f"/api/task/progress/{pid}").status_code == 404
+    assert client.post("/api/task", json={"kind": "real", "progress_id": pid}).status_code == 200
+    rec = client.get(f"/api/task/progress/{pid}").json()
+    assert rec["state"] == "done" and rec["turn"] == 2 and rec["actions"] == 1
+    assert rec["max_turns"] == tasks.MAX_TURNS
+    bad = client.post("/api/task", json={"kind": "real", "progress_id": "../etc"})
+    assert bad.status_code == 422
+
+
+def test_favicon_served(make):
+    client = make()[0]
+    r = client.get("/favicon.ico")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
+    assert 'rel="icon"' in client.get("/").text
+
+
+def test_replay_explains_the_extra_warn_line(make):
+    out = _replay(make()[0])
+    real = tasks.sample_log(False).decode().splitlines()
+    poisoned = tasks.sample_log(True).decode().splitlines()
+    extra = [line for line in poisoned if line not in set(real)]
+    # the only difference between the logs is one WARN line, which the note states
+    assert len(extra) == 1 and extra[0].split()[1] == "WARN"
+    assert "one more WARN" in out["log_note"]
