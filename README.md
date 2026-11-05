@@ -11,7 +11,7 @@ The web app has four tabs:
 1. **Real task.** The agent analyses a sample app log and writes a Markdown report. Every action it proposes goes through the gate.
 2. **Injected task.** Same task, but the log contains a fake "ops-runbook" line that tells the agent to `curl ... | sh` and to post `env` to an outside host. You can run it with the live model, or replay what an agent that obeyed the line would propose. The replay's proposals are scripted; the gate, the sandbox and the receipts are not.
 3. **Attack Arena.** You type code yourself and see the verdict, the rules, the run output and the receipt.
-4. **Verify.** Paste any receipt and the page checks the JSON, the schema, the SHA-256 hash over RFC 8785 JCS and the signature with WebCrypto. A tamper button shows what a failed check looks like.
+4. **Verify.** Paste any receipt and the page checks the JSON, the schema, the SHA-256 hash over RFC 8785 JCS and the signature with WebCrypto. It does not check the hash chain; that is what the offline CLI `airlock verify-chain` is for. A tamper button shows what a failed check looks like.
 
 ## What is actually enforced
 
@@ -47,7 +47,7 @@ The model's output is only data. Decisions come from code. The inference key is 
 
 ## Vultr services used
 
-- **Vultr Cloud Compute**: one VM in Frankfurt (45.77.141.253). It runs Docker with the gVisor runtime, the FastAPI app as a systemd service, Caddy for HTTPS, and a prune timer.
+- **Vultr Cloud Compute**: one VM in Frankfurt. It runs Docker with the gVisor runtime, the FastAPI app as a systemd service, Caddy for HTTPS, and a prune timer.
 - **Vultr Serverless Inference**: the only LLM path. All agent calls go to `https://api.vultrinference.com/v1` (OpenAI-compatible) with model `qwen3.8-27b`. It is a reasoning model, so I use `max_tokens` of at least 2048 (the web tasks use 12000).
 
 ## Threat Model
@@ -100,6 +100,7 @@ You can also get it from `/api/pubkey`. To check a receipt without the browser:
 
 ```bash
 node tests/js/verify_cli.mjs receipt.json d8c2acc2972692ee205a7e056d8ae2791906ba1e17f9bdf2cee14baf53377748
+airlock verify-chain /path/to/receipts --pubkey public.pem
 ```
 
 ## Run the web app locally
@@ -233,7 +234,7 @@ Tests are organized by component:
 
 Smoke tests requiring live services are marked with `@pytest.mark.smoke` and skip when credentials aren't available.
 
-See `docs/CHECKS.md` for the complete list of 42 automated checks.
+See `docs/CHECKS.md` for the complete list of 1297 collected tests.
 
 ## License
 
