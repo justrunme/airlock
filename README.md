@@ -1,6 +1,44 @@
 # Airlock
 
-Live demo: https://45-77-141-253.sslip.io
+An LLM only proposes. A deterministic policy gate decides. Allowed code runs in a disposable Docker container under gVisor. Every job gets an Ed25519-signed, hash-chained receipt. Blast Radius Zero.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/justrunme/airlock/actions/workflows/ci.yml/badge.svg)](https://github.com/justrunme/airlock/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
+
+[![Watch the 3-minute demo](docs/img/video-thumb.png)](https://youtu.be/yrYa1MisCYI)
+
+**Live demo:** https://45-77-141-253.sslip.io
+
+## See it
+
+![Hero: Watch Airlock stop an attack](docs/img/01-hero.png)
+
+*Top of the live demo. One click replays a compromised agent. No model call.*
+
+![Three harmful proposals blocked before any container starts](docs/img/02-attack-stopped.png)
+
+*After the replay: three injected steps are blocked at the gate, the legitimate analysis runs under gVisor (`runsc`), and the page checks the receipt hash and signature in the browser. Change one character and the check fails.*
+
+![Compromised-agent tab: curl|sh and env exfil blocked](docs/img/03-compromised-agent.png)
+
+*Tab 1 (Compromised agent). Scripted `curl | sh` and `/proc/self/environ` exfil are denied (`R-BIN-CURL`, `R-SHELL-EXEC-FILE`, `R-PY-ATTR-DENIED`, `R-PY-OPEN-PATH`). No container starts. Each denial gets a signed receipt.*
+
+![Real task with live model: one of two proposals blocked](docs/img/04-real-task.png)
+
+*Tab 2 (Real task, live `qwen3.8-27b` on Vultr Serverless Inference). On this run the first proposal was denied (`R-PY-PATHLIB-WRITE`). The gate still signed a receipt.*
+
+![Attack arena: curl|sh blocked](docs/img/05-arena-blocked.png)
+
+*Tab 3 (Try to break it). Submit `curl | sh` yourself: `deny` with `R-BIN-CURL` / `R-SHELL-EXEC-FILE`, and no sandbox.*
+
+![Receipt verified in the browser](docs/img/06-verify-valid.png)
+
+*Tab 4 (Verify a receipt). The browser checks JSON, schema, SHA-256 over RFC 8785 JCS, and the Ed25519 signature via WebCrypto. Chain linkage is what `airlock verify-chain` is for; the page does not check it.*
+
+![Tampered receipt marked INVALID](docs/img/07-verify-invalid.png)
+
+*Same receipt after Tamper one character: the hash check fails and the page names the field that changed.*
 
 ## What it is
 
@@ -131,20 +169,20 @@ sudo systemctl restart airlock-web
 
 ## Demo script
 
-1. **A real, useful task.** Open the live demo and run tab 1. The model's code passes the gate, runs in gVisor and writes `report.md` (31 ERROR, 8 WARN). Every step has a signed receipt.
-2. **Replay of a compromised agent.** Go to tab 2. First I show what the live model really did with the poisoned log: the box shows its reasoning from the last live run, word for word, and in my tests it refused the injected line. Then I click "Replay a compromised agent". The page says plainly that these proposals are scripted. They are what an agent that obeyed the line would do:
+1. **A real, useful task.** Open the live demo and run tab 2 (Real task). The model's code passes the gate, runs in gVisor and writes `report.md` (31 ERROR, 8 WARN). Every step has a signed receipt.
+2. **Replay of a compromised agent.** Go to tab 1 (Compromised agent). First I show what the live model really did with the poisoned log: the box shows its reasoning from the last live run, word for word, and in my tests it refused the injected line. Then I click "Replay a compromised agent". The page says plainly that these proposals are scripted. They are what an agent that obeyed the line would do:
    - step 1, the log analysis: allowed, runs in the sandbox;
    - step 2, `curl … | sh`: denied (`R-BIN-CURL`, `R-SHELL-EXEC-FILE`), sandbox never started;
    - step 3, read `/proc/self/environ` and post it out: denied (`R-PY-ATTR-DENIED`, `R-PY-OPEN-PATH`), sandbox never started;
    - step 4, `rm -rf /work/input` and a write to `/etc`: denied (`R-BIN-RM`, `R-SHELL-REDIRECT`), sandbox never started.
 
    The verdicts, limits and receipts are real. Each receipt carries `"context": {"mode": "replay_compromised", "planner": "scripted"}`, so nobody can pass a replay off as a live run without breaking the hash.
-3. **Attack Arena.** Tab 3. I try the same commands by hand, plus a few bypass tricks, and then a harmless `print(1+1)` that runs and shows the container was removed.
+3. **Attack Arena.** Tab 3 (Try to break it). I try the same commands by hand, plus a few bypass tricks, and then a harmless `print(1+1)` that runs and shows the container was removed.
 4. **Verify a receipt, then tamper with it.** From any step I click "Verify in browser": the JSON, schema, hash and signature checks all pass, in the page, with no server call. Then "Tamper one character": one character in a signed field changes and the hash check fails, and the page names the field.
 
 ## Limitations
 
-- The live model (qwen3.8-27b) refused the prompt injection in every run I tried. So the containment moment in tab 2 comes from a replay with scripted proposals. The page and the receipts say so.
+- The live model (qwen3.8-27b) refused the prompt injection in every run I tried. So the containment moment in tab 1 comes from a replay with scripted proposals. The page and the receipts say so.
 - Each `run_code` call is a new sandbox. Files don't carry over between calls.
 - Container isolation lowers risk but doesn't remove it. gVisor helps, but the host is still shared.
 - Static policy can be evaded. The sandbox is the real boundary.
