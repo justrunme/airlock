@@ -57,3 +57,22 @@ def test_prose_outside_fence_ignored_when_fence_ok():
         "Also ERROR: 0 WARN: 0 in narrative.\n"
     )
     assert outcome_check(log, report)["state"] == "VERIFIED"
+
+
+def test_nested_in_four_backtick_example_is_inconclusive():
+    """Valid ```airlock-counts inside a ```` markdown example is not authoritative."""
+    log = sample_log(False)
+    report = "````markdown\nExample report:\n```airlock-counts\nERROR: 31\nWARN: 7\n```\n````\n"
+    assert outcome_check(log, report)["state"] == "INCONCLUSIVE"
+
+
+def test_valid_fence_then_unclosed_second_opening_is_inconclusive():
+    """A second top-level ```airlock-counts opening (even unclosed) voids authority."""
+    log = sample_log(False)
+    report = format_counts_block(31, 7) + "\n```airlock-counts\nERROR: 99\n"
+    assert outcome_check(log, report)["state"] == "INCONCLUSIVE"
+
+
+def test_plain_authoritative_fence_still_verified():
+    log = sample_log(False)
+    assert outcome_check(log, format_counts_block(31, 7))["state"] == "VERIFIED"

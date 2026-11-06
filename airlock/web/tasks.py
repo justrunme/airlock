@@ -130,12 +130,9 @@ def recount_levels(log_bytes: bytes) -> dict[str, int]:
 # Bound count tokens so huge digit strings never inflate into unbounded ints.
 _MAX_COUNT_DIGITS = 9
 _CLEAN_INT = re.compile(rf"^\d{{1,{_MAX_COUNT_DIGITS}}}$")
-# Exactly one info-string fence; body is a structured contract, not scanned prose.
-_COUNTS_FENCE = re.compile(
-    rf"^```{re.escape(COUNTS_FENCE)}\s*\n(.*?)(?:\n)?^```\s*$",
-    flags=re.MULTILINE | re.DOTALL,
-)
 _COUNT_LINE = re.compile(r"^(ERROR|WARN):\s*(\S+)\s*$")
+# CommonMark-style fence line: 3+ backticks, optional info string (open) or empty (close).
+_FENCE_LINE = re.compile(r"^(`{3,})(.*)$")
 
 
 def format_counts_block(error: int, warn: int) -> str:
@@ -143,49 +140,28 @@ def format_counts_block(error: int, warn: int) -> str:
     return f"```{COUNTS_FENCE}\nERROR: {error}\nWARN: {warn}\n```"
 
 
-def _parse_counts_block(text: str) -> dict[str, Any]:
-    """Parse ERROR/WARN only from a single ```airlock-counts fence.
-
-    Prose, examples, quotes, and bare ``ERROR: N`` lines outside the fence are
-    ignored. Missing/duplicate/malformed fences or bodies are INCONCLUSIVE.
-    """
-    empty = {
-        "ERROR": {"value": None, "status": "missing"},
-        "WARN": {"value": None, "status": "missing"},
-        "block_status": "missing",
+def _ambiguous(status: str) -> dict[str, Any]:
+    return {
+        "ERROR": {"value": None, "status": "ambiguous"},
+        "WARN": {"value": None, "status": "ambiguous"},
+        "block_status": status,
     }
-    if not text:
-        return empty
-    blocks = list(_COUNTS_FENCE.finditer(text))
-    if not blocks:
-        return empty
-    if len(blocks) > 1:
-        return {
-            "ERROR": {"value": None, "status": "ambiguous"},
-            "WARN": {"value": None, "status": "ambiguous"},
-            "block_status": "duplicate_fence",
-        }
-    body = blocks[0].group(1)
+
+
+def _body_counts(body_lines: list[str]) -> dict[str, Any]:
+    """Parse ERROR/WARN lines inside one authoritative fence body."""
     found: dict[str, int] = {}
-    for raw in body.splitlines():
+    for raw in body_lines:
         line = raw.strip()
         if not line:
             continue
         m = _COUNT_LINE.fullmatch(line)
         if not m or not _CLEAN_INT.fullmatch(m.group(2)):
-            return {
-                "ERROR": {"value": None, "status": "ambiguous"},
-                "WARN": {"value": None, "status": "ambiguous"},
-                "block_status": "unsupported_format",
-            }
+            return _ambiguous("unsupported_format")
         level = m.group(1)
         value = int(m.group(2))
         if level in found:
-            return {
-                "ERROR": {"value": None, "status": "conflict"},
-                "WARN": {"value": None, "status": "conflict"},
-                "block_status": "conflict",
-            }
+            return _ambiguous("conflict")
         found[level] = value
     out: dict[str, Any] = {"block_status": "ok"}
     for level in ("ERROR", "WARN"):
@@ -197,21 +173,96 @@ def _parse_counts_block(text: str) -> dict[str, Any]:
     return out
 
 
-def outcome_check(log_bytes: bytes, report_text: str | None) -> dict[str, Any]:
-    """Compare the ``airlock-counts`` fence in report.md to a trusted recount.
+def _parse_counts_block(text: str) -> dict[str, Any]:
+    """Line-oriented fence walk: only a top-level closed ``airlock-counts`` counts.
 
-    VERIFIED: one well-formed fence with ERROR and WARN matching the recount.
-    FAILED: one well-formed fence whose integers disagree with the recount.
-    INCONCLUSIVE: missing fence, incomplete/duplicate/unsupported body, or
-    counts only appearing in prose/examples/quotes. Never raises; never treats
-    arbitrary report prose as proof.
+    Nested fences (e.g. inside a four-backtick markdown example), duplicate
+    tagged openings, and unclosed tagged openings are INCONCLUSIVE. Prose
+    outside a single authoritative fence is ignored. Does not use regex
+    ``findall`` over the whole document.
+    """
+    empty = {
+        "ERROR": {"value": None, "status": "missing"},
+        "WARN": {"value": None, "status": "missing"},
+        "block_status": "missing",
+    }
+    if not text:
+        return empty
+
+    # Stack of surrounding non-counts fences: (tick_count,).
+    outer: list[int] = []
+    # When collecting a top-level airlock-counts body: opening tick count.
+    counts_ticks: int | None = None
+    counts_body: list[str] = []
+    completed: list[list[str]] = []
+    counts_openings = 0
+
+    for raw in text.splitlines():
+        m = _FENCE_LINE.match(raw)
+        if m:
+            ticks = len(m.group(1))
+            info = m.group(2).strip()
+            tag = info.split()[0] if info else ""
+
+            if counts_ticks is not None:
+                # Closing the authoritative counts fence (empty info, enough ticks).
+                if not info and ticks >= counts_ticks:
+                    completed.append(counts_body)
+                    counts_ticks = None
+                    counts_body = []
+                    continue
+                # Fence-looking line inside the counts body — not a valid body line.
+                counts_body.append(raw)
+                continue
+
+            if outer:
+                # Inside an outer fence: shorter/equal tagged lines are content,
+                # including nested ```airlock-counts examples (not authoritative).
+                if not info and ticks >= outer[-1]:
+                    outer.pop()
+                continue
+
+            # Top-level fence.
+            if tag == COUNTS_FENCE:
+                counts_openings += 1
+                if counts_openings > 1:
+                    return _ambiguous("duplicate_fence")
+                counts_ticks = ticks
+                counts_body = []
+                continue
+            if info:
+                outer.append(ticks)
+                continue
+            # Bare close at top level — ignore.
+            continue
+
+        if counts_ticks is not None:
+            counts_body.append(raw)
+
+    if counts_ticks is not None:
+        # Unclosed top-level ```airlock-counts (including after a completed one).
+        return _ambiguous("unclosed_fence")
+    if counts_openings == 0:
+        return empty
+    if len(completed) != 1:
+        return _ambiguous("duplicate_fence")
+    return _body_counts(completed[0])
+
+
+def outcome_check(log_bytes: bytes, report_text: str | None) -> dict[str, Any]:
+    """Compare the authoritative top-level ``airlock-counts`` fence to a recount.
+
+    VERIFIED: one well-formed top-level fence with ERROR and WARN matching.
+    FAILED: one well-formed top-level fence whose integers disagree.
+    INCONCLUSIVE: missing, nested-in-example, duplicate, unclosed, or malformed.
+    Prose outside a single authoritative fence does not invalidate. Never raises.
 
     A valid receipt signature is not proof of this world-state claim.
     """
     expected = recount_levels(log_bytes)
     note = (
-        "on this corpus only; host recount vs the ```airlock-counts fence only "
-        "(prose/examples/quotes are ignored). "
+        "on this corpus only; host recount vs one top-level ```airlock-counts fence "
+        "(nested examples / unclosed / duplicates are inconclusive; other prose ignored). "
         "A valid receipt signature means the receipt was not tampered with; it does "
         "not by itself prove the world-state claim inside the receipt."
     )

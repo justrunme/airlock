@@ -23,7 +23,14 @@ from airlock.receipt import ReceiptFormatError
 from airlock.schemas import ActionRequest
 from airlock.web import containment, replay, tasks
 from airlock.web.chain import ReceiptChain, load_or_create_signer, public_key_hex
-from airlock.web.limits import BusyError, Gate, RateLimitedError, RateLimiter, Stats
+from airlock.web.limits import (
+    BusyError,
+    Gate,
+    RateLimitedError,
+    RateLimiter,
+    Stats,
+    admit_all,
+)
 from airlock.web.pipeline import Pipeline
 
 log = logging.getLogger("airlock.web")
@@ -339,21 +346,17 @@ def create_app(
     def limited(request: Request, *names: str, slots: int = 1) -> JSONResponse | None:
         """Admit ``slots`` against each named limiter without cross-budget partial charge.
 
-        Semantics: minute and day budgets are separate counters; admission either
-        succeeds on every named limiter or leaves all of them unchanged.
+        Preflight is non-mutating (never ``reserve`` to manufacture a reject).
+        All named limiters are checked at one shared timestamp, then charged once.
         """
         if slots < 1:
             return None
         ip = client_ip(request)
         try:
             with admit_lock:
-                for n in names:
-                    key = "global" if n == "llm_global" else ip
-                    if limits[n].remaining(key) < slots:
-                        limits[n].reserve(key, slots)  # raises RateLimitedError
-                for n in names:
-                    key = "global" if n == "llm_global" else ip
-                    limits[n].reserve(key, slots)
+                pairs = [(limits[n], "global" if n == "llm_global" else ip) for n in names]
+                now = pairs[0][0].clock()
+                admit_all(pairs, slots, now=now)
         except RateLimitedError as e:
             return JSONResponse(
                 {"error": "rate_limited", "detail": str(e)},

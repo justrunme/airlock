@@ -42,35 +42,77 @@ class RateLimiter:
             q.popleft()
         return q
 
+    def _retry_after(self, q: deque[float], now: float) -> int:
+        if not q:
+            return 1
+        return max(1, int(q[0] + self.window_s - now) + 1)
+
+    def can_admit(self, key: str, n: int, *, now: float) -> tuple[bool, int]:
+        """Non-mutating capacity check at ``now``. Never charges hits.
+
+        Returns ``(ok, retry_after)``. Pruning expired entries is allowed; charging
+        a reject path via ``reserve`` is not.
+        """
+        if n < 1:
+            return True, 0
+        with self._lock:
+            q = self._queue(key, now)
+            if len(q) + n > self.limit:
+                return False, self._retry_after(q, now)
+            return True, 0
+
     def remaining(self, key: str) -> int:
-        """How many more hits ``key`` may take in the current window (unlocked peek)."""
+        """How many more hits ``key`` may take in the current window."""
         now = self.clock()
         with self._lock:
             return max(0, self.limit - len(self._queue(key, now)))
 
-    def reserve(self, key: str, n: int) -> None:
+    def charged(self, key: str) -> int:
+        """Current in-window hit count for tests / diagnostics."""
+        now = self.clock()
+        with self._lock:
+            return len(self._queue(key, now))
+
+    def reserve(self, key: str, n: int, *, now: float | None = None) -> None:
         """Atomically admit ``n`` slots for ``key``, or raise without consuming any.
 
-        Used by multi-step Arena containment so a suite either fits the remaining
-        budget in full or is rejected with 429 (no partial charge). Atomic only
-        within this limiter; cross-limiter admission is coordinated by the caller.
+        Pass the same ``now`` used in a prior ``can_admit`` preflight so expiry is
+        deterministic across limiters. Atomic only within this limiter.
         """
         if n < 1:
             return
-        now = self.clock()
+        ts = self.clock() if now is None else now
         with self._lock:
-            q = self._queue(key, now)
+            q = self._queue(key, ts)
             if len(q) + n > self.limit:
-                retry = 1
-                if q:
-                    retry = max(1, int(q[0] + self.window_s - now) + 1)
-                raise RateLimitedError(retry)
+                raise RateLimitedError(self._retry_after(q, ts))
             for _ in range(n):
-                q.append(now)
+                q.append(ts)
 
     def _gc(self, now: float) -> None:
         for k in [k for k, q in self._hits.items() if not q or q[-1] <= now - self.window_s]:
             del self._hits[k]
+
+
+def admit_all(
+    limiters: list[tuple[RateLimiter, str]],
+    n: int,
+    *,
+    now: float,
+) -> None:
+    """Preflight every limiter at ``now`` without charging; commit only if all pass.
+
+    Rejected admissions leave every limiter's counters unchanged. Successful
+    admissions charge exactly once per limiter at the shared timestamp.
+    """
+    if n < 1:
+        return
+    for lim, key in limiters:
+        ok, retry = lim.can_admit(key, n, now=now)
+        if not ok:
+            raise RateLimitedError(retry)
+    for lim, key in limiters:
+        lim.reserve(key, n, now=now)
 
 
 class Gate:

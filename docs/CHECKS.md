@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1333** in 23 files.
+Total collected tests: **1338** in 24 files.
 
 | File | Tests |
 |------|------:|
@@ -16,7 +16,7 @@ Total collected tests: **1333** in 23 files.
 | `tests/test_e2e.py` | 2 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
-| `tests/test_outcome_check.py` | 6 |
+| `tests/test_outcome_check.py` | 9 |
 | `tests/test_policy.py` | 12 |
 | `tests/test_policy_corpus.py` | 50 |
 | `tests/test_policy_corpus_expanded.py` | 145 |
@@ -24,6 +24,7 @@ Total collected tests: **1333** in 23 files.
 | `tests/test_policy_corpus_r4.py` | 265 |
 | `tests/test_policy_review5.py` | 64 |
 | `tests/test_policy_zip_urllib.py` | 3 |
+| `tests/test_rate_admit.py` | 2 |
 | `tests/test_receipt.py` | 7 |
 | `tests/test_receipt_strict.py` | 35 |
 | `tests/test_sandbox.py` | 25 |
@@ -102,6 +103,9 @@ Total collected tests: **1333** in 23 files.
 | `test_outcome_check_failed_on_unequivocal_fence_mismatch` |  |
 | `test_outcome_check_inconclusive_without_fence` |  |
 | `test_prose_outside_fence_ignored_when_fence_ok` |  |
+| `test_nested_in_four_backtick_example_is_inconclusive` | Valid ```airlock-counts inside a ```` markdown example is not authoritative. |
+| `test_valid_fence_then_unclosed_second_opening_is_inconclusive` | A second top-level ```airlock-counts opening (even unclosed) voids authority. |
+| `test_plain_authoritative_fence_still_verified` |  |
 
 ## `tests/test_policy.py`
 
@@ -1154,6 +1158,13 @@ Total collected tests: **1333** in 23 files.
 | `test_fancyurlopener_and_retrieve_denied` |  |
 | `test_zip_extract_destinations` |  |
 | `test_zip_extractall_bound_method_and_getattr_denied` | Observation (b): destination checks alone miss bound refs / getattr. |
+
+## `tests/test_rate_admit.py`
+
+| Test | Description |
+|------|-------------|
+| `test_rejected_admission_leaves_counters_unchanged_across_rollover` | Minute window expires; day still full. Reject must not charge the minute. |
+| `test_successful_admission_charged_once_at_shared_timestamp` |  |
 
 ## `tests/test_receipt.py`
 
