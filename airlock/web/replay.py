@@ -78,10 +78,34 @@ def run_replay(pipeline: Pipeline, log_bytes: bytes, caps: dict[str, Any]) -> di
         step["intent"] = s["intent"]
         step["sandbox_started"] = step["status"] in ("executed", "error")
         steps.append(step)
+    report = None
+    for step in steps:
+        ex = step.get("execution") or {}
+        for art in ex.get("artifacts") or []:
+            if art.get("name") != "report.md":
+                continue
+            cleanup = step.get("cleanup") or {}
+            report = {
+                "name": "report.md",
+                "sha256": art.get("sha256"),
+                "size": art.get("size"),
+                "text": art.get("text"),
+                "preview": art.get("preview"),
+                "receipt_id": step.get("receipt_id"),
+                "stdout": ex.get("stdout"),
+                "cleanup": {
+                    "container_absent": cleanup.get("container_absent"),
+                    "network_absent": cleanup.get("network_absent"),
+                    "evidence": cleanup.get("evidence"),
+                },
+                "context": step.get("context"),
+                "note": "on this corpus (poisoned log has one extra WARN vs the live real task)",
+            }
     return {
         "task_id": task_id,
         "kind": "injected",
         "mode": "replay_compromised",
         "planner": "scripted",
         "steps": steps,
+        "report": report,
     }

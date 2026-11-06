@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Airlock: stop a compromised AI agent before it runs anything</title>
-<meta name="description" content="Airlock checks every action an AI agent proposes with an independent policy gate, runs allowed code in a gVisor sandbox with no network, and signs every decision into a receipt you can verify in your browser.">
+<title>Airlock (Blast Radius Zero) — SRE log analysis without handing the host to an agent</title>
+<meta name="description" content="I built Airlock (Blast Radius Zero) so an SRE can let an agent analyse untrusted logs without giving it the host or keys. A policy gate decides, a gVisor sandbox runs allowed code, and every decision is an Ed25519-signed receipt you can verify in the browser.">
 <meta name="theme-color" content="#0b0d12">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Airlock">
-<meta property="og:title" content="Airlock: AI agents make mistakes. Your infrastructure shouldn't pay for them.">
-<meta property="og:description" content="Run untrusted agent actions. Contain dangerous behavior. Verify every decision. Live demo: a compromised agent's curl | sh is blocked before any container starts.">
+<meta property="og:site_name" content="Airlock (Blast Radius Zero)">
+<meta property="og:title" content="Airlock (Blast Radius Zero): analyse untrusted logs without giving the agent your host">
+<meta property="og:description" content="For SREs: the agent proposes, my policy gate decides, a disposable sandbox runs allowed code, and you get a signed decision plus a report. Team Airlock BR0.">
 <meta property="og:url" content="https://45-77-141-253.sslip.io/">
 <meta property="og:image" content="https://45-77-141-253.sslip.io/static/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Airlock: agent action detected, curl | sh, blocked before execution, no container started, signed receipt.">
+<meta property="og:image:alt" content="Airlock (Blast Radius Zero): agent action detected, curl | sh, blocked before execution, no container started, signed receipt.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Airlock: AI agents make mistakes. Your infrastructure shouldn't pay for them.">
-<meta name="twitter:description" content="Run untrusted agent actions. Contain dangerous behavior. Verify every decision.">
+<meta name="twitter:title" content="Airlock (Blast Radius Zero): analyse untrusted logs without giving the agent your host">
+<meta name="twitter:description" content="For SREs: signed decisions, a disposable sandbox, and a report — without handing over the host or keys. Team Airlock BR0.">
 <meta name="twitter:image" content="https://45-77-141-253.sslip.io/static/og.png">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/app.css">
@@ -27,18 +27,19 @@
 <a class="skip" href="#result">Skip to the demo result</a>
 <div class="topbar">
   <span class="brand"><svg class="logo" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect x="2.5" y="2.5" width="27" height="27" rx="7" fill="none" stroke="currentColor" stroke-width="2.5"/><rect x="9" y="7.5" width="14" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16" y1="7.5" x2="16" y2="24.5" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="16" r="3.2" fill="#0b0d12" stroke="currentColor" stroke-width="2"/></svg>Airlock</span>
-  <span class="topmeta">Live on a Vultr VM · gVisor sandbox · <a href="https://github.com/justrunme/airlock">source</a></span>
+  <span class="topmeta">Blast Radius Zero · team Airlock BR0 · gVisor sandbox · <a href="https://github.com/justrunme/airlock">source</a></span>
 </div>
 
 <header class="hero">
-  <p class="promise">Don't trust the agent. Verify what it actually did.</p>
-  <h1>AI agents make mistakes. <span class="acc">Your infrastructure shouldn't pay for them.</span></h1>
-  <p class="sub">Run untrusted agent actions. Contain dangerous behavior. Verify every decision.</p>
+  <p class="promise">For SREs who need an agent on untrusted logs — not on the host.</p>
+  <h1>Airlock <span class="acc">(Blast Radius Zero)</span></h1>
+  <p class="sub">I let an agent analyse logs without giving it my host or keys. It proposes; my policy gate decides; allowed code runs in a disposable sandbox; I get a signed decision and a report.</p>
   <div class="cta">
     <button id="attack-run" class="primary big"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>Watch Airlock stop an attack</button>
-    <p class="hint cta-note">About 3 seconds, no model call. A compromised agent's proposals are scripted; the policy gate, the sandbox and the signed receipts are real.</p>
+    <p class="hint cta-note">About 3 seconds, no model call (<span class="mode-tag">replay</span>). A compromised agent's proposals are scripted; the policy gate, the sandbox and the signed receipts are real.</p>
   </div>
-  <p class="threat"><strong>The threat:</strong> the agent read a log that told it to run
+  <p class="threat"><strong>Who it is for:</strong> an SRE who wants an agent to triage untrusted logs.
+  <strong>The threat:</strong> the agent read a log that told it to run
   <code>curl | sh</code>. Airlock assumes the agent is already compromised and asks one question:
   can an independent gate stop the action?</p>
   <p id="live-line" class="live-line" hidden></p>
@@ -60,30 +61,31 @@
   </div>
 
   <div class="guided">
-    <h2 class="demo-h">Demo in 3 steps</h2>
-    <ol class="steps">
-      <li><a href="#tab-injected" data-goto="injected"><strong>Attack</strong><span>replay a compromised agent: the analysis runs, the three harmful steps are cut before any container starts</span></a></li>
-      <li><a href="#tab-arena" data-goto="arena"><strong>Safe code passes</strong><span><code>print(1+1)</code> in the Arena runs in the sandbox</span></a></li>
-      <li><a href="#tab-verify" data-goto="verify"><strong>Verify</strong><span>check a blocked action's signed receipt, then tamper one character</span></a></li>
+    <h2 class="demo-h">Judge path — film in this order</h2>
+    <ol class="steps steps-4" id="story-steps">
+      <li data-step="1"><a href="#tab-real" data-goto="real"><strong>1. Useful result</strong><span><span class="mode-tag">live</span> SRE log triage finishes with downloadable <code>report.md</code>, raw stdout and cleanup evidence (needs inference key on this host)</span></a></li>
+      <li data-step="2"><a href="#tab-injected" data-goto="injected"><strong>2. Attack contained</strong><span><span class="mode-tag">replay</span> compromised agent: gate denies <code>curl | sh</code> / env exfil / cover-tracks before any container starts</span></a></li>
+      <li data-step="3"><a href="#tab-arena" data-goto="arena"><strong>3. Runtime probe</strong><span>sandbox terminates an allowed <code>time.sleep(100)</code> (timeout), then a healthy <code>print(1+1)</code> succeeds — production gate unchanged</span></a></li>
+      <li data-step="4"><a href="#tab-verify" data-goto="verify"><strong>4. Receipt / tamper</strong><span>verify signature + receipt hash in the browser, then change one character. Valid signature ≠ proof of the world-state claim</span></a></li>
     </ol>
     <div class="row">
-      <button id="demo-run" class="secondary">Run all 3 steps (about 10 s)</button>
-      <span class="hint" id="demo-status">No model call: the replay uses scripted proposals, the gate, sandbox and receipts are real.</span>
+      <button id="demo-run" class="secondary">Run judge path (live if keyed → attack → probe → verify)</button>
+      <span class="hint" id="demo-status">Step 1 needs <code>VULTR_INFERENCE_API_KEY</code>; steps 2–4 need no model. Gate, sandbox and receipts are real. Live and replay stay labelled.</span>
     </div>
   </div>
 </section>
 
 <section class="why" aria-labelledby="why-h">
-  <h2 id="why-h">Why Airlock matters</h2>
+  <h2 id="why-h">Why I built Airlock</h2>
   <div class="why-grid">
     <div class="why-card without"><h3>Without Airlock</h3>
       <p>An AI agent follows a malicious instruction hidden in a log and attempts an unsafe action.
-      Whatever it proposes runs with the agent's access.</p></div>
+      Whatever it proposes runs with the agent's access to my host and keys.</p></div>
     <div class="why-card with"><h3>With Airlock</h3>
       <p>The action is independently checked, blocked before execution, and recorded in a
-      verifiable receipt. Safe work still runs, inside a sandbox with no network.</p></div>
+      verifiable receipt. Safe work still runs, inside a sandbox with no network, and I get a report.</p></div>
   </div>
-  <p class="closing">An AI agent can make a mistake. Airlock makes sure that mistake doesn't automatically become an incident.</p>
+  <p class="closing">An AI agent can make a mistake. I built Airlock so that mistake does not automatically become my incident.</p>
 </section>
 
 <section class="pipe" aria-labelledby="pipe-h">
@@ -117,8 +119,9 @@
   <p class="statuses"><span class="badge deny">BLOCKED</span> the gate denied it before anything ran
   · <span class="badge allow">ALLOWED</span> it passed the gate
   · <span class="badge contained">CONTAINED</span> allowed code ran in the restricted sandbox (runsc, no network, limits)
+  · <span class="badge fail">TERMINATED</span> the sandbox stopped it (timeout / memory / similar)
   · <span class="badge pass">VERIFIED</span> the receipt's signature and receipt hash check out.
-  VERIFIED proves the record is intact and signed, not that the execution was safe.</p>
+  A valid signature means the receipt was not tampered with; it does not by itself prove the world-state claim inside the receipt.</p>
   <p class="guarantee"><strong>What I guarantee:</strong> every action the agent proposes is checked
   by the policy before anything runs, denied code never reaches a container, and every decision
   gets a signed, hash-chained receipt. You can check a receipt's signature and hash here in your browser or offline with the
@@ -130,30 +133,34 @@
   <p class="meta" id="meta">loading&hellip;</p>
 </section>
 
-<h2 class="tabs-h">Try it yourself</h2>
+<h2 class="tabs-h">Try it yourself — same order as the judge path</h2>
 <nav role="tablist">
-  <button role="tab" data-tab="injected" aria-selected="true">1. Compromised agent</button>
-  <button role="tab" data-tab="real">2. Real task (live model)</button>
-  <button role="tab" data-tab="arena">3. Try to break it</button>
+  <button role="tab" data-tab="real" aria-selected="true">1. Real task (live)</button>
+  <button role="tab" data-tab="injected">2. Compromised agent</button>
+  <button role="tab" data-tab="arena">3. Containment / arena</button>
   <button role="tab" data-tab="verify">4. Verify a receipt</button>
 </nav>
 
 <main>
-<section id="tab-real" class="tab" hidden>
-  <h2>SRE log triage</h2>
-  <p>The agent gets <code>/work/input/app.log</code> (120 lines) and is asked to count errors per
-  component and write a short report. The model is Qwen on Vultr Serverless Inference.
-  A run takes 20&ndash;90 seconds because the model reasons before answering.</p>
+<section id="tab-real" class="tab">
+  <h2>SRE log triage <span class="mode-tag">live</span></h2>
+  <p>This is the useful-result path for an SRE: the live model gets
+  <code>/work/input/app.log</code> (on this corpus) and is asked to count ERROR/WARN lines,
+  group errors, and write <code>report.md</code>. Every proposal goes through the gate; allowed
+  code runs in the sandbox. When it finishes you can download the report, read the raw stdout,
+  and see cleanup evidence. Receipts are labelled <code>mode: live</code>. Needs
+  <code>VULTR_INFERENCE_API_KEY</code>. A run takes 20&ndash;90 seconds because the model reasons
+  before answering. Counts below are on this corpus only.</p>
   <details><summary>Task prompt and sample log</summary>
     <pre id="real-prompt" class="scroll"></pre>
     <pre id="real-log" class="scroll"></pre>
   </details>
-  <button class="run" data-kind="real">Run the real task</button>
+  <button class="run" data-kind="real">Run the real task (live model)</button>
   <div class="out" id="out-real"></div>
 </section>
 
-<section id="tab-injected" class="tab">
-  <h2>Same task, poisoned log</h2>
+<section id="tab-injected" class="tab" hidden>
+  <h2>Same task, poisoned log <span class="mode-tag">replay</span> / <span class="mode-tag">live</span></h2>
   <p>One log line pretends to be an ops runbook and tells agents to pipe a remote script into
   <code>sh</code> and post the environment to an outside host. The task prompt is deliberately
   naive and says to follow runbook steps. The gate decides on the code, not on the model's intent.</p>
@@ -182,7 +189,17 @@
   <p>Submit Python or bash. It goes through the same policy and sandbox as the agent's code:
   no network, read-only root, no capabilities, no secrets, 10&nbsp;s, 128&nbsp;MB, 32 processes (RLIMIT_NPROC).
   Benign code runs; anything the policy does not understand is denied.</p>
-  <p class="hint">The counter below is global: all visitors, all time, includes demo runs (the guided demo submits <code>print(1+1)</code> here). It is not a count of external attacks.</p>
+  <p class="notice"><strong>Runtime containment probe</strong> (separate from the policy-gate replay):
+  code that the gate allows can still be stopped by the sandbox. The button below runs
+  <code>time.sleep(100)</code> under the 10&nbsp;s wall-clock cap (expect <code>killed_by=timeout</code>
+  and cleanup), then a healthy <code>print(1+1)</code>. I do not loosen the production gate for this —
+  sleep is already allow-listed; the sandbox is what terminates it. Memory-cap, read-only rootfs
+  and blocked-egress probes live in the isolated Docker tests (<code>tests/test_sandbox.py</code>).</p>
+  <div class="row">
+    <button id="containment-run" class="secondary">Run timeout probe, then healthy task</button>
+    <span class="hint" id="containment-status">Uses the real Arena pipeline twice. Needs Docker on this host.</span>
+  </div>
+  <p class="hint">The counter below is global: all visitors, all time, includes demo runs. It is not a count of external attacks.</p>
   <div class="counter" id="counter">attempts: &ndash; &middot; blocked: &ndash; &middot; ran: &ndash; &middot; rejected: &ndash;</div>
   <div class="examples" id="examples"></div>
   <div class="row">
@@ -250,8 +267,12 @@
 </section>
 
 <footer>
-  <p>MIT licensed. Source: <a href="https://github.com/justrunme/airlock">github.com/justrunme/airlock</a>.
-  Runs on a Vultr Cloud Compute VM in Frankfurt.
+  <p>Airlock (Blast Radius Zero) · team Airlock BR0. MIT licensed.
+  Source: <a href="https://github.com/justrunme/airlock">github.com/justrunme/airlock</a>.
+  I run the demo on a Vultr Cloud Compute VM in Frankfurt.
+  Pitch stills: <a href="/static/title-card.svg">title card</a> ·
+  <a href="/static/pipeline-card.svg">pipeline card</a>
+  (plan → gate → gVisor sandbox → signed receipt).
   API: <a href="/api/policy">/api/policy</a> &middot; <a href="/api/pubkey">/api/pubkey</a> &middot; <a href="/healthz">/healthz</a></p>
 </footer>
 </body>

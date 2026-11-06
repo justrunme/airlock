@@ -35,9 +35,48 @@ class FakeRunner:
         self.calls.append((action, caps, dict(input_files or {})))
         out = Path(work_dir) / "output"
         (out / "out").mkdir(parents=True, exist_ok=True)
-        (out / "stdout.txt").write_bytes(b"ERROR 31\n")
+        code = action.code or ""
+        # Mirror the real watchdog for the Arena timeout probe without Docker.
+        if "time.sleep(" in code and "100" in code:
+            (out / "stdout.txt").write_bytes(
+                b"containment probe: sleeping past the wall-clock timeout\n"
+            )
+            (out / "stderr.txt").write_bytes(b"Timeout\n")
+            return Execution(
+                container_name="airlock-fake-timeout",
+                image_digest=self.image_digest,
+                runtime="runc",
+                started="2026-11-04T00:00:00+00:00",
+                ended="2026-11-04T00:00:10+00:00",
+                exit_code=137,
+                killed_by="timeout",
+                stdout_sha256=sha256(
+                    b"containment probe: sleeping past the wall-clock timeout\n"
+                ).hexdigest(),
+                stderr_sha256=sha256(b"Timeout\n").hexdigest(),
+                artifacts=[],
+                report_invalid=True,
+            )
+        if "print(1+1)" in code:
+            (out / "stdout.txt").write_bytes(b"2\n")
+            (out / "stderr.txt").write_bytes(b"")
+            return Execution(
+                container_name="airlock-fake-healthy",
+                image_digest=self.image_digest,
+                runtime="runc",
+                started="2026-11-04T00:00:00+00:00",
+                ended="2026-11-04T00:00:01+00:00",
+                exit_code=0,
+                stdout_sha256=sha256(b"2\n").hexdigest(),
+                artifacts=[],
+            )
+        report = (
+            b"# app.log report\n\nERROR: 31  WARN: 7\n\n"
+            b"## Errors by message\n- 18 x upstream connect error\n"
+        )
+        (out / "stdout.txt").write_bytes(b"ERROR=31 WARN=7\n")
         (out / "stderr.txt").write_bytes(b"")
-        (out / "out" / "report.md").write_bytes(b"# report\n")
+        (out / "out" / "report.md").write_bytes(report)
         return Execution(
             container_name="airlock-fake",
             image_digest=self.image_digest,
@@ -45,8 +84,8 @@ class FakeRunner:
             started="2026-11-04T00:00:00+00:00",
             ended="2026-11-04T00:00:01+00:00",
             exit_code=0,
-            stdout_sha256=sha256(b"ERROR 31\n").hexdigest(),
-            artifacts=[Artifact(name="report.md", sha256=sha256(b"# report\n").hexdigest())],
+            stdout_sha256=sha256(b"ERROR=31 WARN=7\n").hexdigest(),
+            artifacts=[Artifact(name="report.md", sha256=sha256(report).hexdigest())],
         )
 
 
@@ -184,10 +223,29 @@ class TestTask:
         assert steps[0]["verdict"] == "allow" and steps[0]["status"] == "executed"
         assert steps[0]["execution"]["artifacts"][0]["name"] == "report.md"
         assert body["final_answer"] == "done"
+        assert body["mode"] == "live" and body["planner"] == "model"
         receipt = check_receipt(c, steps[0]["receipt_id"])
         assert receipt.model.provider == "vultr-serverless-inference"
         # the log reaches the sandbox only as an input file
         assert b"ERROR" in runner.calls[0][2]["app.log"]
+
+    def test_real_task_exposes_downloadable_report_raw_output_and_cleanup(self, make):
+        """Contract for the useful live result: report text, stdout, cleanup evidence."""
+        c, *_ = make([BENIGN])
+        body = c.post("/api/task", json={"kind": "real"}).json()
+        assert body["mode"] == "live"
+        report = body["report"]
+        assert report is not None
+        assert report["name"] == "report.md"
+        assert "ERROR" in (report["text"] or report["preview"] or "")
+        assert report["stdout"]
+        assert report["cleanup"]["container_absent"] is True
+        assert report["cleanup"]["network_absent"] is True
+        assert report["context"]["mode"] == "live"
+        art = body["turns"][0]["actions"][0]["execution"]["artifacts"][0]
+        assert art["name"] == "report.md" and art.get("text")
+        assert art["text"].startswith("# app.log report")
+        check_receipt(c, report["receipt_id"])
 
     def test_injected_task_blocked_with_reason(self, make):
         c, runner, llm, _ = make([HARMFUL])
@@ -594,37 +652,82 @@ def test_replay_explains_the_extra_warn_line(make):
 
 def test_hero_promise_steps_and_collapsed_facts(make):
     html = make()[0].get("/").text
-    assert "Don't trust the agent. Verify what it actually did." in html
-    assert "told it to run" in html and "Demo in 3 steps" in html and 'id="result"' in html
-    assert (
-        'AI agents make mistakes. <span class="acc">Your infrastructure shouldn\'t pay for them.'
-        in html
-    )
-    assert "Run untrusted agent actions. Contain dangerous behavior. Verify every decision." in html
+    assert "For SREs who need an agent on untrusted logs" in html
+    assert "Blast Radius Zero" in html and "Airlock BR0" in html
+    assert "told it to run" in html and "Judge path" in html and 'id="result"' in html
     assert 'id="attack-run"' in html and "Watch Airlock stop an attack" in html
-    assert "Why Airlock matters" in html and "Without Airlock" in html and "With Airlock" in html
+    assert "Why I built Airlock" in html and "Without Airlock" in html and "With Airlock" in html
     # page order: hero result, why, pipeline, tabs, facts
     order = [
         html.index(x)
-        for x in ('id="result"', "Why Airlock matters", 'class="pipeline', "<nav", 'class="facts"')
+        for x in ('id="result"', "Why I built Airlock", 'class="pipeline', "<nav", 'class="facts"')
     ]
     assert order == sorted(order)
-    for tab in ("injected", "arena", "verify"):
+    for tab in ("real", "injected", "arena", "verify"):
         assert f'data-goto="{tab}"' in html and f'id="tab-{tab}"' in html
-    # the replay is the default view; the live-model task is one click away
-    assert '<section id="tab-injected" class="tab">' in html
-    assert 'data-tab="injected" aria-selected="true"' in html
+    # filmable order: live useful result is the default tab; attack is step 2
+    assert '<section id="tab-real" class="tab">' in html
+    assert 'data-tab="real" aria-selected="true"' in html
+    assert 'id="story-steps"' in html and 'data-step="1"' in html and 'data-step="4"' in html
     assert "signing key lives on this VM" in html
     assert "already compromised" in html and "not a successful attack on a" in html
-    for word in ("BLOCKED", "ALLOWED", "CONTAINED", "VERIFIED"):
+    for word in ("BLOCKED", "ALLOWED", "CONTAINED", "TERMINATED", "VERIFIED"):
         assert word in html
-    assert "not that the execution was safe" in html
-    assert "doesn't automatically become an incident" in html
+    assert "was not tampered with" in html and "world-state claim" in html
     assert "What I guarantee:" in html and "What I do not:" in html
-    assert 'id="demo-run"' in html
+    assert 'id="demo-run"' in html and 'id="containment-run"' in html
+    assert 'href="/static/title-card.svg"' in html and 'href="/static/pipeline-card.svg"' in html
     # limitations and corpus numbers stay on the page, collapsed, with honest wording
     assert '<details id="corpus">' in html and '<details id="limits">' in html
     assert "on this corpus" in html and "Containers share the host kernel" in html
+
+
+def test_containment_then_healthy_timeout_probe(make):
+    """Runtime containment (allowed by gate, killed by sandbox) then a healthy follow-up."""
+    c, runner, *_ = make(arena_per_min=10)
+    r = c.post("/api/arena", json={"mode": "containment_then_healthy"})
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["kind"] == "containment_then_healthy" and out["mode"] == "live"
+    probe, healthy = out["steps"]
+    assert probe["verdict"] == "allow"
+    assert probe["execution"]["killed_by"] == "timeout"
+    assert probe["cleanup"]["container_absent"] is True
+    assert probe["context"]["probe"] == "timeout"
+    assert healthy["verdict"] == "allow"
+    assert healthy["execution"]["exit_code"] == 0
+    assert healthy["execution"].get("killed_by") in (None, "")
+    assert healthy["cleanup"]["container_absent"] is True
+    assert "2" in (healthy["execution"]["stdout"] or "")
+    assert len(runner.calls) == 2
+    check_receipt(c, probe["receipt_id"])
+    check_receipt(c, healthy["receipt_id"])
+
+
+def test_containment_mode_does_not_weaken_the_gate(make):
+    """Negative: Arena still fail-closes on network/exfil; containment is not a bypass."""
+    c, runner, *_ = make(arena_per_min=10)
+    denied = c.post(
+        "/api/arena",
+        json={"lang": "python", "code": "import socket; socket.create_connection(('1.1.1.1', 80))"},
+    ).json()
+    assert denied["verdict"] != "allow" and runner.calls == []
+    check_receipt(c, denied["receipt_id"])
+    # curl|sh still blocked after the containment endpoint exists
+    blocked = c.post("/api/arena", json={"lang": "bash", "code": HARMFUL[1]}).json()
+    assert blocked["verdict"] == "deny" and blocked["status"] == "blocked"
+    assert runner.calls == []
+
+
+def test_pitch_stills_are_local_static_svgs(make):
+    c = make()[0]
+    for name in ("title-card.svg", "pipeline-card.svg"):
+        r = c.get(f"/static/{name}")
+        assert r.status_code == 200
+        assert b"Airlock" in r.content and b"Blast Radius Zero" in r.content
+        # xmlns uses the SVG W3C namespace URI; no remote image/script/href fetches
+        assert b'href="http' not in r.content and b"xlink:href" not in r.content
+        assert b"<script" not in r.content and b"<image" not in r.content
 
 
 def test_blocked_steps_carry_the_fields_the_strip_shows(make):

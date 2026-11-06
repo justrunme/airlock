@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 from airlock.policy import PolicyEngine
 from airlock.receipt import ReceiptFormatError
 from airlock.schemas import ActionRequest
-from airlock.web import replay, tasks
+from airlock.web import containment, replay, tasks
 from airlock.web.chain import ReceiptChain, load_or_create_signer, public_key_hex
 from airlock.web.limits import BusyError, Gate, RateLimitedError, RateLimiter, Stats
 from airlock.web.pipeline import Pipeline
@@ -85,6 +85,13 @@ class TaskRequest(BaseModel):
     mode: Literal["live", "replay_compromised"] = "live"
     # client-chosen id to poll /api/task/progress/{id} while a live run is going
     progress_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{16,32}$")
+
+
+class ArenaContainment(BaseModel):
+    """Arena mode: timeout probe then a healthy follow-up (no LLM, production gate)."""
+
+    model_config = ConfigDict(extra="forbid")
+    mode: Literal["containment_then_healthy"]
 
 
 def _rule_codes() -> list[str]:
@@ -426,11 +433,37 @@ def create_app(
             raw = await read_json(request)
             if not isinstance(raw, dict):
                 raise ValueError("not an object")
-            req = (ArenaInject if raw.get("mode") == "inject" else ArenaCode).model_validate(raw)
+            mode = raw.get("mode")
+            if mode == "containment_then_healthy":
+                req: ArenaCode | ArenaInject | ArenaContainment = ArenaContainment.model_validate(
+                    raw
+                )
+            elif mode == "inject":
+                req = ArenaInject.model_validate(raw)
+            else:
+                req = ArenaCode.model_validate(raw)
         except Exception as e:
             stats.bump("attempts", "rejected")
             detail = str(e).splitlines()[0][:300] if str(e) else "invalid request"
             return _err(422, "bad_request", detail)
+        if isinstance(req, ArenaContainment):
+            # Two arena slots: timeout probe then healthy follow-up. No LLM.
+            # Counts as two attempts so the per-IP budget still applies honestly.
+            if r := limited(request, "arena_min", "arena_day"):
+                return r
+            try:
+                out = await run_in_threadpool(
+                    containment.run_containment_then_healthy, pipeline, ARENA_CAPS
+                )
+            except BusyError:
+                return _err(503, "busy", "too many sandboxes running, retry shortly")
+            for step in out["steps"]:
+                stats.bump(
+                    "attempts",
+                    "blocked_by_policy" if step["verdict"] != "allow" else "ran_in_sandbox",
+                )
+            out["stats"] = stats.snapshot()
+            return out
         if isinstance(req, ArenaInject) and (
             r := limited(request, "task_min", "task_day", "llm_global")
         ):

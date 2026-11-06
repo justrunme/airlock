@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-label="Airlock Blast Radius Zero title card">
+  <rect width="1280" height="720" fill="#0b0d12"/>
+  <rect x="48" y="48" width="1184" height="624" fill="none" stroke="#2a2f3a" stroke-width="2"/>
+  <text x="80" y="120" fill="#9aa0a6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="22">team Airlock BR0</text>
+  <text x="80" y="220" fill="#e6e6e6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="64" font-weight="700">Airlock</text>
+  <text x="80" y="290" fill="#58a6ff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="42" font-weight="700">(Blast Radius Zero)</text>
+  <text x="80" y="380" fill="#9aa0a6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="26">SRE log analysis without handing the host to an agent</text>
+  <text x="80" y="460" fill="#e6e6e6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="22">plan ’ policy gate ’ gVisor sandbox ’ signed receipt</text>
+  <text x="80" y="560" fill="#3fb950" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">$ airlock verify · Ed25519 · hash chain · network=none</text>
+  <text x="80" y="620" fill="#9aa0a6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16">A valid signature means the receipt was not tampered with;</text>
+  <text x="80" y="644" fill="#9aa0a6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16">it does not by itself prove the world-state claim inside the receipt.</text>
+</svg>

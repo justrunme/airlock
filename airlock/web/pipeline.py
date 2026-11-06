@@ -5,6 +5,7 @@ Nothing here reads the inference key; the sandbox gets only the job code and
 its input files.
 """
 
+import contextlib
 import logging
 import shutil
 import uuid
@@ -23,11 +24,27 @@ log = logging.getLogger("airlock.web")
 STDOUT_PREVIEW = 4096
 STDERR_PREVIEW = 2048
 ARTIFACT_PREVIEW = 2048
+# Full UTF-8 body for downloadable text artifacts (reports). Larger files stay preview-only.
+ARTIFACT_FULL_TEXT = 64 * 1024
 
 
 def _preview(data: bytes, limit: int) -> str:
     text = data[:limit].decode("utf-8", errors="replace")
     return text + ("\n…[truncated]" if len(data) > limit else "")
+
+
+def _artifact_payload(name: str, digest: str, data: bytes) -> dict[str, Any]:
+    """Preview always; include full ``text`` when the whole UTF-8 body fits the limit."""
+    entry: dict[str, Any] = {
+        "name": name,
+        "sha256": digest,
+        "size": len(data),
+        "preview": _preview(data, ARTIFACT_PREVIEW),
+    }
+    if len(data) <= ARTIFACT_FULL_TEXT:
+        with contextlib.suppress(UnicodeDecodeError):
+            entry["text"] = data.decode("utf-8")
+    return entry
 
 
 class Pipeline:
@@ -101,14 +118,7 @@ class Pipeline:
                 for a in execution.artifacts:
                     p = out_dir / "out" / a.name
                     data = p.read_bytes() if p.is_file() else b""
-                    artifacts.append(
-                        {
-                            "name": a.name,
-                            "sha256": a.sha256,
-                            "size": len(data),
-                            "preview": _preview(data, ARTIFACT_PREVIEW),
-                        }
-                    )
+                    artifacts.append(_artifact_payload(a.name, a.sha256, data))
                 receipt_data.update(
                     execution=execution.model_dump(by_alias=True),
                     verification=verification.model_dump(by_alias=True),
