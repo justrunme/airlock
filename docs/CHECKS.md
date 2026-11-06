@@ -6,28 +6,32 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1307** in 20 files.
+Total collected tests: **1346** in 24 files.
 
 | File | Tests |
 |------|------:|
 | `tests/test_agent.py` | 6 |
-| `tests/test_containment.py` | 3 |
+| `tests/test_containment.py` | 7 |
+| `tests/test_containment_live.py` | 3 |
 | `tests/test_e2e.py` | 2 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
+| `tests/test_outcome_check.py` | 17 |
 | `tests/test_policy.py` | 12 |
 | `tests/test_policy_corpus.py` | 50 |
 | `tests/test_policy_corpus_expanded.py` | 145 |
 | `tests/test_policy_corpus_independent.py` | 478 |
 | `tests/test_policy_corpus_r4.py` | 265 |
 | `tests/test_policy_review5.py` | 64 |
+| `tests/test_policy_zip_urllib.py` | 3 |
+| `tests/test_rate_admit.py` | 2 |
 | `tests/test_receipt.py` | 7 |
 | `tests/test_receipt_strict.py` | 35 |
 | `tests/test_sandbox.py` | 25 |
 | `tests/test_sandbox_unit.py` | 37 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
-| `tests/test_web_api.py` | 73 |
+| `tests/test_web_api.py` | 83 |
 | `tests/test_web_copy.py` | 6 |
 | `tests/test_web_js_crosscheck.py` | 51 |
 
@@ -46,9 +50,21 @@ Total collected tests: **1307** in 20 files.
 
 | Test | Description |
 |------|-------------|
-| `test_timeout_probe_is_allowed_by_production_gate` | The Arena timeout probe must pass the gate; containment is runtime, not deny. |
-| `test_healthy_followup_is_allowed_by_production_gate` |  |
-| `test_gate_still_denies_egress_and_readonly_writes` | Negative: do not stage containment by weakening fail-closed path checks. |
+| `test_supported_probes_are_allowed_by_production_gate` |  |
+| `test_former_bypass_probes_are_now_gate_denied` | Do not stage write/egress runtime demos via policy gaps. |
+| `test_zip_extract_under_work_out_still_allowed` |  |
+| `test_unsupported_probe_metadata_is_honest` |  |
+| `test_evaluate_pair_failed_on_unexpected_success` |  |
+| `test_evaluate_pair_pass_requires_kill_healthy_and_cleanup` |  |
+| `test_probe_snippets` |  |
+
+## `tests/test_containment_live.py`
+
+| Test | Description |
+|------|-------------|
+| `test_live_probe_through_pipeline[timeout-code0-timeout]` | Real gate allow → sandbox kill → healthy follow-up. Not FakeRunner. |
+| `test_live_probe_through_pipeline[memory-code1-oom]` | Real gate allow → sandbox kill → healthy follow-up. Not FakeRunner. |
+| `test_live_gate_still_denies_zip_tmp_and_fancyurlopener` | Negative: hardened entry points never reach Docker. |
 
 ## `tests/test_e2e.py`
 
@@ -76,6 +92,28 @@ Total collected tests: **1307** in 20 files.
 |------|-------------|
 | `TestNetwork::test_network_allowlist_raises_error` | Network allowlist mode raises clear error (not implemented). |
 | `TestNetwork::test_network_none_accepted` | Network none is accepted (may skip if no Docker). |
+
+## `tests/test_outcome_check.py`
+
+| Test | Description |
+|------|-------------|
+| `test_recount_levels_on_sample_corpus` |  |
+| `test_outcome_check_verified_only_with_canonical_fence` |  |
+| `test_prose_example_counts_are_not_verified` | Observation (a): scanning arbitrary prose falsely VERIFIED before the fence contract. |
+| `test_outcome_check_failed_on_unequivocal_fence_mismatch` |  |
+| `test_outcome_check_inconclusive_without_fence` |  |
+| `test_prose_outside_fence_ignored_when_fence_ok` |  |
+| `test_nested_in_four_backtick_example_is_inconclusive` | Valid ```airlock-counts inside a ```` markdown example is not authoritative. |
+| `test_bare_four_backtick_wrapper_is_inconclusive` | Bare ```` (no language tag) still opens; nested counts must not VERIFIED. |
+| `test_same_length_wrapper_then_trailing_counts_is_inconclusive` | Nested counts inside ``` voids the doc even if a later top-level fence appears. |
+| `test_wrapper_variants_do_not_count_as_authoritative` | Tagged/bare backtick and tilde wrappers of varying lengths keep examples out. |
+| `test_mixed_marker_rejection` | Mixed `~ runs are ambiguous — never an authoritative counts fence. |
+| `test_indented_wrapper_1_2_3_spaces_is_inconclusive` | 1–3 space-indented outer fences are real Markdown fences; nested counts void. |
+| `test_indent4_wrapper_is_inconclusive` | Indent ≥4 fence-shaped lines are ambiguous under the strict subset. |
+| `test_valid_fence_then_unclosed_second_opening_is_inconclusive` | A second top-level ```airlock-counts opening (even unclosed) voids authority. |
+| `test_plain_authoritative_fence_still_verified` |  |
+| `test_indented_canonical_counts_0_to_3_still_verified` | Top-level counts fence may itself be indented 0–3 spaces. |
+| `test_adversarial_fence_matrix_examples_never_verified` | Exhaustive wrapper matrix: examples must never VERIFIED; plain unique still does. |
 
 ## `tests/test_policy.py`
 
@@ -1121,6 +1159,21 @@ Total collected tests: **1307** in 20 files.
 | `test_shell_allow[printf "%b" "\\x2fetc\\x2fpasswd"]` |  |
 | `test_shell_allow[echo done > /work/out/x.txt]` |  |
 
+## `tests/test_policy_zip_urllib.py`
+
+| Test | Description |
+|------|-------------|
+| `test_fancyurlopener_and_retrieve_denied` |  |
+| `test_zip_extract_destinations` |  |
+| `test_zip_extractall_bound_method_and_getattr_denied` | Observation (b): destination checks alone miss bound refs / getattr. |
+
+## `tests/test_rate_admit.py`
+
+| Test | Description |
+|------|-------------|
+| `test_rejected_admission_leaves_counters_unchanged_across_rollover` | Minute window expires; day still full. Reject must not charge the minute. |
+| `test_successful_admission_charged_once_at_shared_timestamp` |  |
+
 ## `tests/test_receipt.py`
 
 | Test | Description |
@@ -1304,6 +1357,7 @@ Total collected tests: **1307** in 20 files.
 | `TestBasics::test_ui_served_without_external_resources` |  |
 | `TestTask::test_real_task_runs_and_signs` |  |
 | `TestTask::test_real_task_exposes_downloadable_report_raw_output_and_cleanup` | Contract for the useful live result: report text, stdout, cleanup evidence. |
+| `TestTask::test_grep_only_does_not_fabricate_report` | Negative: FakeRunner / pipeline must not invent report.md for grep-only. |
 | `TestTask::test_injected_task_blocked_with_reason` |  |
 | `TestTask::test_injected_log_contains_injection` |  |
 | `TestTask::test_action_budget` |  |
@@ -1362,8 +1416,17 @@ Total collected tests: **1307** in 20 files.
 | `test_favicon_served` |  |
 | `test_replay_explains_the_extra_warn_line` |  |
 | `test_hero_promise_steps_and_collapsed_facts` |  |
-| `test_containment_then_healthy_timeout_probe` | Runtime containment (allowed by gate, killed by sandbox) then a healthy follow-up. |
+| `test_containment_then_healthy_timeout_probe` | Wiring: timeout probe + healthy under FakeRunner (not live Docker proof). |
+| `test_containment_memory_probe` |  |
+| `test_containment_write_egress_are_unsupported_not_staged[write]` | Negative: write/egress are not filmable via policy gaps; no sandbox starts. |
+| `test_containment_write_egress_are_unsupported_not_staged[egress]` | Negative: write/egress are not filmable via policy gaps; no sandbox starts. |
+| `test_containment_suite_fits_default_minute_budget` | Suite = timeout+memory (4 slots) under production default arena_per_min=6. |
+| `test_containment_busy_on_action2_keeps_probe_receipt` | Busy on healthy (action 2) after timeout probe: keep probe, mark healthy unexecuted. |
+| `test_containment_busy_on_action4_keeps_first_pair_and_memory_probe` | Busy on suite action 4 (memory healthy): keep timeout pair + memory probe. |
+| `test_malformed_arena_requests_are_rate_limited_before_stats_storm` | Observation (d): invalid bodies must hit the production arena budget before rejected writes. |
 | `test_containment_mode_does_not_weaken_the_gate` | Negative: Arena still fail-closes on network/exfil; containment is not a bypass. |
+| `test_live_task_outcome_check_verified_on_this_corpus` | Independent recount of ERROR/WARN matches report.md for the sample log. |
+| `test_live_task_outcome_check_failed_on_wrong_report` |  |
 | `test_pitch_stills_are_local_static_svgs` |  |
 | `test_blocked_steps_carry_the_fields_the_strip_shows` |  |
 | `test_blocked_card_claims_nothing_until_filled` |  |

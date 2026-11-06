@@ -171,7 +171,7 @@ sudo systemctl restart airlock-web
 
 Film / judge in this order (also the "Run judge path" button on the page):
 
-1. **Useful live result.** Tab 1 (Real task, live model). Needs `VULTR_INFERENCE_API_KEY`. The model analyses `/work/input/app.log` on this corpus, writes `report.md`, and the page shows downloadable report text, raw stdout and cleanup evidence. Receipts carry `"context": {"mode": "live", "planner": "model"}`.
+1. **Useful live result.** Tab 1 (Real task, live model). Needs `VULTR_INFERENCE_API_KEY`. The model analyses `/work/input/app.log` on this corpus, writes `report.md` with a required ```airlock-counts fence (ERROR/WARN integers only), and the page shows downloadable report text, raw stdout, cleanup evidence, and an independent recount against that fence only (VERIFIED/FAILED/INCONCLUSIVE on this corpus only; prose/examples/quotes are ignored). Receipts carry `"context": {"mode": "live", "planner": "model"}`.
 2. **Attack contained (policy gate).** Tab 2 (Compromised agent) → "Replay a compromised agent". Proposals are scripted; the gate, sandbox and receipts are real:
    - step 1, the log analysis: allowed, runs in the sandbox (report.md on this corpus; poisoned log has one extra WARN);
    - step 2, `curl … | sh`: denied (`R-BIN-CURL`, `R-SHELL-EXEC-FILE`), sandbox never started;
@@ -179,7 +179,7 @@ Film / judge in this order (also the "Run judge path" button on the page):
    - step 4, `rm -rf /work/input` and a write to `/etc`: denied (`R-BIN-RM`, `R-SHELL-REDIRECT`), sandbox never started.
 
    Each receipt carries `"context": {"mode": "replay_compromised", "planner": "scripted"}`.
-3. **Runtime containment, then healthy.** Tab 3 → "Run timeout probe, then healthy task". Allowed `time.sleep(100)` is terminated by the sandbox (`killed_by=timeout`); then `print(1+1)` succeeds with cleanup. The production gate is not loosened for this. Memory-cap, read-only rootfs and blocked-egress proofs stay in the isolated Docker tests (`tests/test_sandbox.py` S15/S20/S22/S24).
+3. **Runtime containment, then healthy (reduced scope).** Tab 3 → **timeout and memory only** (suite = both; 4 of the default 6 arena slots/min, atomic admit). Claim them on camera **only** after a genuine deployed Docker run shows `PASS` (`killed_by=timeout` / `killed_by=oom`, healthy `print(1+1)` exit 0 / stdout `2`, cleanup). Structured result: PASS / FAILED / INCONCLUSIVE — no false green. **Network isolation and read-only rootfs are not demonstrated on this demo path** (no egress / write-outside Arena probes; do not film `tests/test_sandbox.py` S15/S19/S20 as this flow).
 4. **Verify a receipt, then tamper.** Tab 4: JSON, schema, hash and signature checks in the browser. Then "Tamper one character". A valid signature means the receipt was not tampered with; it does not by itself prove the world-state claim inside the receipt.
 
 Pitch stills (dark/terminal, same UI family): `/static/title-card.svg`, `/static/pipeline-card.svg`.
