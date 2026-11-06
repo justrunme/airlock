@@ -15,10 +15,15 @@ This document lists genuine limitations that remain after implementation.
 
 **Security stance**: The code fails closed. Attempting to use allowlist mode returns an error rather than silently allowing all network access.
 
+## 1b. Arena Runtime Containment Covers Timeout and Memory Only
+
+**Status**: Intentional scope  
+**Behavior**: The public Arena containment path offers filmable `timeout` and `memory` probes (gate allow → sandbox `killed_by` → healthy follow-up). Write-outside and blocked-egress are **not** staged there: zip `extract`/`extractall` destinations outside `/work/out/` and urllib network entry points (`FancyURLopener`, `retrieve`, `urlopen`, …) are denied by the production gate. Rootfs `--read-only` does not protect writable tmpfs mounts such as `/tmp`. Direct Docker proofs for those isolations remain in `tests/test_sandbox.py` (S15/S19/S20) and are distinct from the Arena path. Live Arena PASS evidence requires Docker; FakeRunner tests are wiring only.
+
 ## 2. Docker Required for Sandbox Tests
 
 **Status**: 23 tests skip without Docker  
-**Tests**: S13-S28 (sandbox), V29-V32+V34 (verifier), E40-E41 (E2E)
+**Tests**: S13-S28 (sandbox), V29-V32+V34 (verifier), E40-E41 (E2E), containment live proofs
 
 **Reason**: These tests verify real Docker container behavior:
 - UID/GID isolation

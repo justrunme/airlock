@@ -54,9 +54,11 @@ def test_judge_path_orders_useful_attack_probe_verify():
     assert "containment_then_healthy" in JS
     assert "containment_suite" in JS
     assert "Download report.md" in JS
-    assert "outcome_check" in JS or "Independent outcome check" in JS
-    for probe in ("timeout", "memory", "write", "egress"):
+    assert "Independent outcome check" in JS
+    for probe in ("timeout", "memory"):
         assert f'data-probe="{probe}"' in HTML
+    assert 'data-probe="write"' not in HTML and 'data-probe="egress"' not in HTML
+    assert "UNSUPPORTED" in HTML or "gate-denied" in HTML
     i_real = HTML.index('data-tab="real"')
     i_inj = HTML.index('data-tab="injected"')
     i_arena = HTML.index('data-tab="arena"')

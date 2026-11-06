@@ -32,6 +32,16 @@ class RateLimiter:
         self._lock = threading.Lock()
 
     def hit(self, key: str) -> None:
+        self.reserve(key, 1)
+
+    def reserve(self, key: str, n: int) -> None:
+        """Atomically admit ``n`` slots for ``key``, or raise without consuming any.
+
+        Used by multi-step Arena containment so a suite either fits the remaining
+        budget in full or is rejected with 429 (no partial charge).
+        """
+        if n < 1:
+            return
         now = self.clock()
         with self._lock:
             if len(self._hits) > self.MAX_KEYS:
@@ -39,9 +49,13 @@ class RateLimiter:
             q = self._hits.setdefault(key, deque())
             while q and q[0] <= now - self.window_s:
                 q.popleft()
-            if len(q) >= self.limit:
-                raise RateLimitedError(max(1, int(q[0] + self.window_s - now) + 1))
-            q.append(now)
+            if len(q) + n > self.limit:
+                retry = 1
+                if q:
+                    retry = max(1, int(q[0] + self.window_s - now) + 1)
+                raise RateLimitedError(retry)
+            for _ in range(n):
+                q.append(now)
 
     def _gc(self, now: float) -> None:
         for k in [k for k, q in self._hits.items() if not q or q[-1] <= now - self.window_s]:

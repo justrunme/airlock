@@ -151,10 +151,12 @@ DENIED_ATTRS = {
     "itemgetter",
     "urlopen",
     "urlretrieve",
+    "retrieve",
     "build_opener",
     "install_opener",
     "OpenerDirector",
     "URLopener",
+    "FancyURLopener",
     "vformat",
     "format_map",
     "Formatter",
@@ -712,6 +714,30 @@ class PythonChecker:
             elif path_violation(path, False):
                 rule, message = path_violation(path, False)
                 self.flag(message, rule)
+        elif isinstance(func, ast.Attribute) and func.attr in {"extract", "extractall"}:
+            # Zip extract destinations write files; only /work/out/... is allowed.
+            # Default cwd (/work) and writable tmpfs mounts like /tmp stay denied.
+            if not self.zip_handle(func.value):
+                self.flag(f"zipfile.{func.attr}() on unknown handle", "R-PY-ZIP-EXTRACT")
+            else:
+                dest = (
+                    self.arg(node, 0, "path")
+                    if func.attr == "extractall"
+                    else self.arg(node, 1, "path")
+                )
+                if dest is None:
+                    self.flag(
+                        f"zipfile.{func.attr}() destination defaults outside /work/out",
+                        "R-PY-ZIP-EXTRACT",
+                    )
+                else:
+                    self.check_access(
+                        dest,
+                        ast.Constant("w"),
+                        "w",
+                        write_rule="R-PY-ZIP-EXTRACT",
+                        read_rule="R-PY-ZIP-EXTRACT",
+                    )
         elif isinstance(func, ast.Attribute) and func.attr in PATHLIB_READ | PATHLIB_WRITE | {
             "open"
         }:

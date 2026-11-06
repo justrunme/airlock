@@ -88,11 +88,14 @@ class TaskRequest(BaseModel):
 
 
 class ArenaContainment(BaseModel):
-    """Arena mode: runtime probe then a healthy follow-up (no LLM, production gate)."""
+    """Arena mode: runtime probe then a healthy follow-up (no LLM, production gate).
+
+    Supported filmable probes: timeout, memory. write/egress return UNSUPPORTED
+    (gate-hardened; not staged via policy gaps). Suite = timeout+memory (4 slots).
+    """
 
     model_config = ConfigDict(extra="forbid")
     mode: Literal["containment_then_healthy", "containment_suite"]
-    # timeout is the original probe; memory / write / egress use the same path.
     probe: Literal["timeout", "memory", "write", "egress"] = "timeout"
 
 
@@ -323,11 +326,13 @@ def create_app(
     def arena_stats():
         return stats.snapshot()
 
-    def limited(request: Request, *names: str) -> JSONResponse | None:
+    def limited(request: Request, *names: str, slots: int = 1) -> JSONResponse | None:
+        """Admit ``slots`` against each named limiter, atomically per limiter."""
         ip = client_ip(request)
         try:
             for n in names:
-                limits[n].hit("global" if n == "llm_global" else ip)
+                key = "global" if n == "llm_global" else ip
+                limits[n].reserve(key, slots)
         except RateLimitedError as e:
             return JSONResponse(
                 {"error": "rate_limited", "detail": str(e)},
@@ -429,8 +434,8 @@ def create_app(
 
     @app.post("/api/arena")
     async def post_arena(request: Request):
-        if r := limited(request, "arena_min", "arena_day"):
-            return r
+        # Validate before charging multi-slot containment so a 422 never burns
+        # half a suite budget. Single-shot Arena still admits 1 slot after parse.
         try:
             raw = await read_json(request)
             if not isinstance(raw, dict):
@@ -448,34 +453,38 @@ def create_app(
             stats.bump("attempts", "rejected")
             detail = str(e).splitlines()[0][:300] if str(e) else "invalid request"
             return _err(422, "bad_request", detail)
+
         if isinstance(req, ArenaContainment):
-            # Each probe + healthy follow-up is two arena slots. No LLM.
-            # One slot was already consumed by the limiter at the top of this handler.
-            n_pairs = 4 if req.mode == "containment_suite" else 1
-            for _ in range(n_pairs * 2 - 1):
-                if r := limited(request, "arena_min", "arena_day"):
-                    return r
-            try:
-                if req.mode == "containment_suite":
-                    out = await run_in_threadpool(
-                        containment.run_containment_suite, pipeline, ARENA_CAPS
-                    )
-                else:
-                    out = await run_in_threadpool(
-                        containment.run_containment_then_healthy,
-                        pipeline,
-                        ARENA_CAPS,
-                        req.probe,
-                    )
-            except BusyError:
-                return _err(503, "busy", "too many sandboxes running, retry shortly")
-            for step in out["steps"]:
+            slots = containment.slots_for(
+                req.mode, None if req.mode == "containment_suite" else req.probe
+            )
+            # Unsupported probes charge nothing (no sandbox). Supported ones
+            # reserve the full pair/suite atomically against the production budget.
+            if slots and (r := limited(request, "arena_min", "arena_day", slots=slots)):
+                return r
+            if req.mode == "containment_suite":
+                out = await run_in_threadpool(
+                    containment.run_containment_suite, pipeline, ARENA_CAPS
+                )
+            else:
+                out = await run_in_threadpool(
+                    containment.run_containment_then_healthy,
+                    pipeline,
+                    ARENA_CAPS,
+                    req.probe,
+                )
+            for step in out.get("steps") or []:
                 stats.bump(
                     "attempts",
-                    "blocked_by_policy" if step["verdict"] != "allow" else "ran_in_sandbox",
+                    "blocked_by_policy" if step.get("verdict") != "allow" else "ran_in_sandbox",
                 )
             out["stats"] = stats.snapshot()
+            # Incomplete/busy still returns 200 with partial evidence; clients
+            # read result.state / incomplete rather than inventing a green PASS.
             return out
+
+        if r := limited(request, "arena_min", "arena_day"):
+            return r
         if isinstance(req, ArenaInject) and (
             r := limited(request, "task_min", "task_day", "llm_global")
         ):

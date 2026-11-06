@@ -114,45 +114,96 @@ def recount_levels(log_bytes: bytes) -> dict[str, int]:
     return {"ERROR": int(counts["ERROR"]), "WARN": int(counts["WARN"])}
 
 
-def _parse_report_levels(text: str) -> dict[str, int | None]:
-    """Best-effort parse of ERROR/WARN counts claimed inside report.md."""
-    found: dict[str, int | None] = {"ERROR": None, "WARN": None}
+# Bound count tokens so huge digit strings never inflate into unbounded ints.
+_MAX_COUNT_DIGITS = 9
+# Explicit count claim: ERROR: 31 / WARN = 7. Reject decimals, commas, exponents,
+# and overlong digit runs as ambiguous rather than truncating into a false match.
+_COUNT_CLAIM = re.compile(
+    r"\b(ERROR|WARN)\b\s*[=:]\s*(\S+)",
+    flags=re.IGNORECASE,
+)
+_CLEAN_INT = re.compile(rf"^\d{{1,{_MAX_COUNT_DIGITS}}}$")
+
+
+def _parse_report_levels(text: str) -> dict[str, Any]:
+    """Parse ERROR/WARN count claims from report.md without last-wins truncation.
+
+    Returns per-level ``value`` (unique clean int or None) and ``status``:
+    ``ok`` / ``missing`` / ``ambiguous`` / ``conflict``.
+    """
+    out: dict[str, Any] = {
+        "ERROR": {"value": None, "status": "missing", "claims": []},
+        "WARN": {"value": None, "status": "missing", "claims": []},
+    }
     if not text:
-        return found
+        return out
+    claims: dict[str, list[Any]] = {"ERROR": [], "WARN": []}
+    ambiguous: dict[str, bool] = {"ERROR": False, "WARN": False}
+    for match in _COUNT_CLAIM.finditer(text):
+        level = match.group(1).upper()
+        token = match.group(2).rstrip(".,;)")
+        if not _CLEAN_INT.fullmatch(token):
+            ambiguous[level] = True
+            claims[level].append(token)
+            continue
+        claims[level].append(int(token))
     for level in ("ERROR", "WARN"):
-        matches = re.findall(rf"\b{level}\b\s*[=:]\s*(\d+)", text, flags=re.IGNORECASE)
-        if matches:
-            # last explicit claim wins (reports often restate the headline)
-            found[level] = int(matches[-1])
-    return found
+        out[level]["claims"] = claims[level]
+        if ambiguous[level]:
+            out[level]["status"] = "ambiguous"
+            continue
+        ints = [c for c in claims[level] if isinstance(c, int)]
+        if not ints:
+            out[level]["status"] = "missing"
+            continue
+        unique = set(ints)
+        if len(unique) > 1:
+            out[level]["status"] = "conflict"
+            continue
+        out[level]["status"] = "ok"
+        out[level]["value"] = next(iter(unique))
+    return out
 
 
 def outcome_check(log_bytes: bytes, report_text: str | None) -> dict[str, Any]:
     """Compare report.md claims to a trusted recount of this corpus only.
 
-    VERIFIED: both ERROR and WARN parsed from the report and match the recount.
-    FAILED: both parsed and at least one disagrees.
-    INCONCLUSIVE: report missing or counts could not be parsed.
+    VERIFIED: both ERROR and WARN have one clean integer claim matching the recount.
+    FAILED: both levels have one clean integer claim and at least one mismatches.
+    INCONCLUSIVE: missing, partial, conflicting, or ambiguous tokens (decimals,
+    commas, exponents, overlong digit runs). Never raises on malformed counts.
 
     A valid receipt signature is not proof of this world-state claim.
     """
     expected = recount_levels(log_bytes)
-    parsed = _parse_report_levels(report_text or "")
     note = (
         "on this corpus only; host recount of the input log, not the model's words. "
         "A valid receipt signature means the receipt was not tampered with; it does "
         "not by itself prove the world-state claim inside the receipt."
     )
-    if report_text is None or parsed["ERROR"] is None or parsed["WARN"] is None:
+    if report_text is None:
+        return {
+            "state": "INCONCLUSIVE",
+            "expected": expected,
+            "reported": {"ERROR": None, "WARN": None},
+            "detail": {"ERROR": "missing", "WARN": "missing"},
+            "note": note,
+        }
+    parsed = _parse_report_levels(report_text)
+    reported = {"ERROR": parsed["ERROR"]["value"], "WARN": parsed["WARN"]["value"]}
+    detail = {"ERROR": parsed["ERROR"]["status"], "WARN": parsed["WARN"]["status"]}
+    statuses = (parsed["ERROR"]["status"], parsed["WARN"]["status"])
+    if any(s != "ok" for s in statuses):
         state = "INCONCLUSIVE"
-    elif parsed["ERROR"] == expected["ERROR"] and parsed["WARN"] == expected["WARN"]:
+    elif reported["ERROR"] == expected["ERROR"] and reported["WARN"] == expected["WARN"]:
         state = "VERIFIED"
     else:
         state = "FAILED"
     return {
         "state": state,
         "expected": expected,
-        "reported": parsed,
+        "reported": reported,
+        "detail": detail,
         "note": note,
     }
 

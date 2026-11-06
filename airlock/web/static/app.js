@@ -510,7 +510,7 @@ $("#demo-run").addEventListener("click", async () => {
     const rep = await runReplay();
 
     markStory(3);
-    say("Step 3/4: runtime containment suite (timeout, memory, write-outside, egress), each with a healthy follow-up.");
+    say("Step 3/4: runtime containment suite (timeout then memory), each with a healthy follow-up.");
     showTab("arena");
     await runContainmentThenHealthy({ suite: true });
     await new Promise((r) => setTimeout(r, 800));
@@ -582,11 +582,23 @@ async function runArena() {
 }
 $("#arena-run").addEventListener("click", () => runArena().catch(() => {}));
 
+function containmentStateBadge(state) {
+  const cls = state === "PASS" ? "pass" : state === "FAILED" ? "fail" : "neutral";
+  return badge(state || "INCONCLUSIVE", cls);
+}
+
 function renderContainment(out, target) {
   target.replaceChildren();
+  const result = out.result || {};
   target.append(el("p", {}, modeTag("live"), " ",
-    el("strong", {}, "Runtime containment then healthy follow-up"),
-    el("span", { class: "hint" }, ` · task ${out.task_id}`)));
+    el("strong", {}, "Runtime containment"),
+    el("span", { class: "hint" }, ` · task ${out.task_id || "n/a"}`),
+    " ", containmentStateBadge(result.state)));
+  if (result.reason) target.append(el("p", { class: "hint" }, result.reason));
+  if (out.incomplete) {
+    target.append(el("p", { class: "err" },
+      `Incomplete: remaining ${JSON.stringify(out.remaining || [])}. Completed steps kept; nothing fabricated.`));
+  }
   for (const s of out.steps ?? []) {
     target.append(el("div", { class: "step-title" }, el("strong", {}, s.label || "step")));
     target.append(renderStep(s));
@@ -595,27 +607,25 @@ function renderContainment(out, target) {
 }
 
 function summarizeContainment(out) {
-  const probes = (out.steps || []).filter((s) => s.intent === "containment_probe");
-  const bits = probes.map((p) => {
+  const result = out.result || {};
+  const parts = [`result=${result.state || "?"}`];
+  if (out.incomplete) parts.push("incomplete");
+  for (const p of (out.steps || []).filter((s) => s.intent === "containment_probe")) {
     const killed = p.execution?.killed_by;
-    const stdout = p.execution?.stdout || "";
-    if (killed) return `${p.probe}: killed_by=${killed}`;
-    if (stdout.includes("WRITE_BLOCKED")) return `${p.probe}: WRITE_BLOCKED`;
-    if (stdout.includes("EGRESS_BLOCKED")) return `${p.probe}: EGRESS_BLOCKED`;
-    return `${p.probe}: status=${p.status}`;
-  });
-  return bits.join(" · ");
+    parts.push(killed ? `${p.probe}:killed_by=${killed}` : `${p.probe}:${p.status}`);
+  }
+  return parts.join(" · ");
 }
 
 async function runContainmentThenHealthy({ probe = "timeout", suite = false } = {}) {
-  const buttons = ["#containment-run", "#containment-memory", "#containment-write", "#containment-egress", "#containment-suite"]
+  const buttons = ["#containment-run", "#containment-memory", "#containment-suite"]
     .map((s) => $(s)).filter(Boolean);
   const st = $("#containment-status");
   const target = $("#out-arena");
   for (const b of buttons) b.disabled = true;
   if (st) {
     st.textContent = suite
-      ? "Running all four runtime probes through the real gate and sandbox…"
+      ? "Running timeout+memory suite (4 arena slots, atomic admit)…"
       : `Running ${probe} probe through the real gate and sandbox…`;
   }
   target.replaceChildren(el("p", { class: "spinner" }, suite ? "containment suite" : `${probe} probe, then healthy task`));
@@ -625,7 +635,7 @@ async function runContainmentThenHealthy({ probe = "timeout", suite = false } = 
       : { mode: "containment_then_healthy", probe };
     const out = await api("/api/arena", body);
     renderContainment(out, target);
-    if (st) st.textContent = `${summarizeContainment(out)}. Healthy follow-ups included.`;
+    if (st) st.textContent = summarizeContainment(out);
     return out;
   } catch (e) {
     target.replaceChildren(el("p", { class: "err" }, e.message));
@@ -637,7 +647,7 @@ async function runContainmentThenHealthy({ probe = "timeout", suite = false } = 
     refreshMeta();
   }
 }
-for (const id of ["containment-run", "containment-memory", "containment-write", "containment-egress"]) {
+for (const id of ["containment-run", "containment-memory"]) {
   $(`#${id}`)?.addEventListener("click", (ev) => {
     const probe = ev.currentTarget.dataset.probe || "timeout";
     runContainmentThenHealthy({ probe }).catch(() => {});
