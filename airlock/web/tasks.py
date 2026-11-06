@@ -131,8 +131,9 @@ def recount_levels(log_bytes: bytes) -> dict[str, int]:
 _MAX_COUNT_DIGITS = 9
 _CLEAN_INT = re.compile(rf"^\d{{1,{_MAX_COUNT_DIGITS}}}$")
 _COUNT_LINE = re.compile(r"^(ERROR|WARN):\s*(\S+)\s*$")
-# CommonMark-style fence: 3+ backticks or tildes; optional info (open) / empty (close).
-_FENCE_LINE = re.compile(r"^([`~]{3,})(.*)$")
+# Strict subset: 0–3 spaces + homogeneous ` or ~ run. Mixed / indent≥4 → ambiguous.
+_FENCE_SHAPED = re.compile(r"^( *)([`~]{3,})(.*)$")
+_TAB_BEFORE_FENCE = re.compile(r"^[ \t]*\t[ \t]*[`~]{3,}")
 
 
 def format_counts_block(error: int, warn: int) -> str:
@@ -146,6 +147,28 @@ def _ambiguous(status: str) -> dict[str, Any]:
         "WARN": {"value": None, "status": "ambiguous"},
         "block_status": status,
     }
+
+
+def _classify_fence_line(raw: str) -> tuple[int, str, str] | str | None:
+    """Return (ticks, family_char, info) | 'ambiguous' | None if not fence-shaped.
+
+    Homogeneous backtick/tilde markers only; indent must be 0–3 spaces.
+    Indent ≥4 or mixed marker runs reject as ambiguous (strict subset).
+    """
+    # Trailing spaces on a fence line are insignificant (CommonMark closers).
+    line = raw.rstrip(" \t")
+    if _TAB_BEFORE_FENCE.match(line):
+        return "ambiguous"
+    m = _FENCE_SHAPED.match(line)
+    if not m:
+        return None
+    indent, marker, rest = m.group(1), m.group(2), m.group(3)
+    if len(indent) > 3:
+        return "ambiguous"
+    families = set(marker)
+    if families != {"`"} and families != {"~"}:
+        return "ambiguous"
+    return (len(marker), marker[0], rest.strip())
 
 
 def _body_counts(body_lines: list[str]) -> dict[str, Any]:
@@ -176,10 +199,12 @@ def _body_counts(body_lines: list[str]) -> dict[str, Any]:
 def _parse_counts_block(text: str) -> dict[str, Any]:
     """Line-oriented fence walk: only a top-level closed ``airlock-counts`` counts.
 
-    Bare fences at top level OPEN a code block (CommonMark); they are not ignored
-    closes. Nested ``airlock-counts`` inside backtick/tilde wrappers (tagged or
-    bare, any length ≥3) are not authoritative. Duplicate/unclosed tagged openings
-    are INCONCLUSIVE. Prose outside one authoritative fence is ignored.
+    Strict bounded Markdown subset: 0–3 space indent, homogeneous backtick or
+    tilde markers. Bare top-level fences OPEN (not ignored closes). Nested
+    ``airlock-counts`` inside wrappers are not authoritative. Mixed markers,
+    indent ≥4 fence shapes, duplicate/unclosed tagged openings → INCONCLUSIVE.
+    Closing requires same marker family and length ≥ opening. Prose outside one
+    authoritative fence is ignored.
     """
     empty = {
         "ERROR": {"value": None, "status": "missing"},
@@ -198,12 +223,11 @@ def _parse_counts_block(text: str) -> dict[str, Any]:
     counts_openings = 0
 
     for raw in text.splitlines():
-        m = _FENCE_LINE.match(raw)
-        if m:
-            marker = m.group(1)
-            ticks = len(marker)
-            char = marker[0]
-            info = m.group(2).strip()
+        classified = _classify_fence_line(raw)
+        if classified == "ambiguous":
+            return _ambiguous("ambiguous_fence")
+        if classified is not None:
+            ticks, char, info = classified
             tag = info.split()[0] if info else ""
 
             if counts_open is not None:
@@ -217,12 +241,16 @@ def _parse_counts_block(text: str) -> dict[str, Any]:
                 continue
 
             if outer:
+                # Counts tag inside any wrapper voids authority (strict subset):
+                # same-length outer fences would otherwise treat the nested
+                # closer as the outer closer and let a later block VERIFIED.
+                if tag == COUNTS_FENCE:
+                    return _ambiguous("nested_fence")
                 o_ticks, o_char = outer[-1]
                 # Same fence family + enough ticks + empty info closes the outer.
                 if not info and char == o_char and ticks >= o_ticks:
                     outer.pop()
-                # Else content (nested shorter/other-family fences, including
-                # nested airlock-counts examples).
+                # Else content (nested shorter/other-family fences).
                 continue
 
             # Top-level: any fence line opens. Bare fences open too (not closes).
