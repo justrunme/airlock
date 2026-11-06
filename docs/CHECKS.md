@@ -6,15 +6,16 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1307** in 20 files.
+Total collected tests: **1317** in 21 files.
 
 | File | Tests |
 |------|------:|
 | `tests/test_agent.py` | 6 |
-| `tests/test_containment.py` | 3 |
+| `tests/test_containment.py` | 4 |
 | `tests/test_e2e.py` | 2 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
+| `tests/test_outcome_check.py` | 4 |
 | `tests/test_policy.py` | 12 |
 | `tests/test_policy_corpus.py` | 50 |
 | `tests/test_policy_corpus_expanded.py` | 145 |
@@ -27,7 +28,7 @@ Total collected tests: **1307** in 20 files.
 | `tests/test_sandbox_unit.py` | 37 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
-| `tests/test_web_api.py` | 73 |
+| `tests/test_web_api.py` | 78 |
 | `tests/test_web_copy.py` | 6 |
 | `tests/test_web_js_crosscheck.py` | 51 |
 
@@ -46,9 +47,10 @@ Total collected tests: **1307** in 20 files.
 
 | Test | Description |
 |------|-------------|
-| `test_timeout_probe_is_allowed_by_production_gate` | The Arena timeout probe must pass the gate; containment is runtime, not deny. |
+| `test_every_filmable_probe_is_allowed_by_production_gate` | Containment is runtime, not a gate deny staged by loosening the allow-list. |
 | `test_healthy_followup_is_allowed_by_production_gate` |  |
-| `test_gate_still_denies_egress_and_readonly_writes` | Negative: do not stage containment by weakening fail-closed path checks. |
+| `test_gate_still_denies_direct_egress_and_path_writes` | Negative: do not stage containment by weakening fail-closed path/network checks. |
+| `test_probe_snippets_are_the_documented_ones` |  |
 
 ## `tests/test_e2e.py`
 
@@ -76,6 +78,15 @@ Total collected tests: **1307** in 20 files.
 |------|-------------|
 | `TestNetwork::test_network_allowlist_raises_error` | Network allowlist mode raises clear error (not implemented). |
 | `TestNetwork::test_network_none_accepted` | Network none is accepted (may skip if no Docker). |
+
+## `tests/test_outcome_check.py`
+
+| Test | Description |
+|------|-------------|
+| `test_recount_levels_on_sample_corpus` |  |
+| `test_outcome_check_verified_when_report_matches` |  |
+| `test_outcome_check_failed_on_mismatched_counts` | Negative: a wrong report is FAILED, not VERIFIED. |
+| `test_outcome_check_inconclusive_without_parsable_counts` |  |
 
 ## `tests/test_policy.py`
 
@@ -1363,7 +1374,12 @@ Total collected tests: **1307** in 20 files.
 | `test_replay_explains_the_extra_warn_line` |  |
 | `test_hero_promise_steps_and_collapsed_facts` |  |
 | `test_containment_then_healthy_timeout_probe` | Runtime containment (allowed by gate, killed by sandbox) then a healthy follow-up. |
+| `test_containment_probes_memory_write_egress[memory-killed_by:oom]` | Each filmable probe is gate-allowed and shows sandbox evidence + healthy follow-up. |
+| `test_containment_probes_memory_write_egress[write-WRITE_BLOCKED]` | Each filmable probe is gate-allowed and shows sandbox evidence + healthy follow-up. |
+| `test_containment_probes_memory_write_egress[egress-EGRESS_BLOCKED]` | Each filmable probe is gate-allowed and shows sandbox evidence + healthy follow-up. |
+| `test_containment_suite_runs_all_four_probes` |  |
 | `test_containment_mode_does_not_weaken_the_gate` | Negative: Arena still fail-closes on network/exfil; containment is not a bypass. |
+| `test_live_task_outcome_check_verified_on_this_corpus` | Independent recount of ERROR/WARN matches report.md for the sample log. |
 | `test_pitch_stills_are_local_static_svgs` |  |
 | `test_blocked_steps_carry_the_fields_the_strip_shows` |  |
 | `test_blocked_card_claims_nothing_until_filled` |  |

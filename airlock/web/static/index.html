@@ -65,7 +65,7 @@
     <ol class="steps steps-4" id="story-steps">
       <li data-step="1"><a href="#tab-real" data-goto="real"><strong>1. Useful result</strong><span><span class="mode-tag">live</span> SRE log triage finishes with downloadable <code>report.md</code>, raw stdout and cleanup evidence (needs inference key on this host)</span></a></li>
       <li data-step="2"><a href="#tab-injected" data-goto="injected"><strong>2. Attack contained</strong><span><span class="mode-tag">replay</span> compromised agent: gate denies <code>curl | sh</code> / env exfil / cover-tracks before any container starts</span></a></li>
-      <li data-step="3"><a href="#tab-arena" data-goto="arena"><strong>3. Runtime probe</strong><span>sandbox terminates an allowed <code>time.sleep(100)</code> (timeout), then a healthy <code>print(1+1)</code> succeeds — production gate unchanged</span></a></li>
+      <li data-step="3"><a href="#tab-arena" data-goto="arena"><strong>3. Runtime probes</strong><span>timeout / memory / write-outside / egress — each allowed by the gate, stopped by the sandbox, then a healthy follow-up</span></a></li>
       <li data-step="4"><a href="#tab-verify" data-goto="verify"><strong>4. Receipt / tamper</strong><span>verify signature + receipt hash in the browser, then change one character. Valid signature ≠ proof of the world-state claim</span></a></li>
     </ol>
     <div class="row">
@@ -189,16 +189,23 @@
   <p>Submit Python or bash. It goes through the same policy and sandbox as the agent's code:
   no network, read-only root, no capabilities, no secrets, 10&nbsp;s, 128&nbsp;MB, 32 processes (RLIMIT_NPROC).
   Benign code runs; anything the policy does not understand is denied.</p>
-  <p class="notice"><strong>Runtime containment probe</strong> (separate from the policy-gate replay):
-  code that the gate allows can still be stopped by the sandbox. The button below runs
-  <code>time.sleep(100)</code> under the 10&nbsp;s wall-clock cap (expect <code>killed_by=timeout</code>
-  and cleanup), then a healthy <code>print(1+1)</code>. I do not loosen the production gate for this —
-  sleep is already allow-listed; the sandbox is what terminates it. Memory-cap, read-only rootfs
-  and blocked-egress probes live in the isolated Docker tests (<code>tests/test_sandbox.py</code>).</p>
+  <p class="notice"><strong>Runtime containment probes</strong> (separate from the policy-gate replay):
+  code the gate allows can still be stopped by the sandbox. Each probe below is allow-listed today
+  and fails closed at runtime, then a healthy <code>print(1+1)</code> runs. I do not loosen the
+  production gate for this.
+  <code>timeout</code> → <code>killed_by=timeout</code>;
+  <code>memory</code> → <code>killed_by=oom</code>;
+  <code>write</code> → zip extract onto <code>/</code> hits read-only rootfs (<code>WRITE_BLOCKED</code>);
+  <code>egress</code> → <code>FancyURLopener.retrieve</code> under <code>network=none</code> (<code>EGRESS_BLOCKED</code>).
+  Docker-unit proofs remain in <code>tests/test_sandbox.py</code>.</p>
   <div class="row">
-    <button id="containment-run" class="secondary">Run timeout probe, then healthy task</button>
-    <span class="hint" id="containment-status">Uses the real Arena pipeline twice. Needs Docker on this host.</span>
+    <button id="containment-run" class="secondary" data-probe="timeout">Timeout → healthy</button>
+    <button id="containment-memory" class="secondary" data-probe="memory">Memory → healthy</button>
+    <button id="containment-write" class="secondary" data-probe="write">Write-outside → healthy</button>
+    <button id="containment-egress" class="secondary" data-probe="egress">Egress → healthy</button>
+    <button id="containment-suite" class="secondary">Run all four probes</button>
   </div>
+  <p class="hint" id="containment-status">Uses the real Arena pipeline. Needs Docker on this host. Live results only — CI FakeRunner mirrors them for tests.</p>
   <p class="hint">The counter below is global: all visitors, all time, includes demo runs. It is not a count of external attacks.</p>
   <div class="counter" id="counter">attempts: &ndash; &middot; blocked: &ndash; &middot; ran: &ndash; &middot; rejected: &ndash;</div>
   <div class="examples" id="examples"></div>

@@ -42,10 +42,26 @@ function downloadText(filename, text) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function reportCard(report, { liveLabel = "live" } = {}) {
+function outcomeCheckCard(check) {
+  if (!check) return null;
+  const cls = check.state === "VERIFIED" ? "pass" : check.state === "FAILED" ? "fail" : "neutral";
+  return el("div", { class: "card outcome-check" },
+    el("div", {}, badge(check.state, cls), el("strong", {}, " Independent outcome check"),
+      el("span", { class: "hint" }, " — host recount of ERROR/WARN on this corpus vs report.md")),
+    kv([
+      ["expected ERROR", check.expected?.ERROR],
+      ["expected WARN", check.expected?.WARN],
+      ["report ERROR", check.reported?.ERROR ?? "(unparsed)"],
+      ["report WARN", check.reported?.WARN ?? "(unparsed)"],
+    ]),
+    el("p", { class: "hint" }, check.note || ""));
+}
+
+function reportCard(report, { liveLabel = "live", outcomeCheck = null } = {}) {
   if (!report) return null;
   const body = report.text ?? report.preview ?? "";
   const clean = report.cleanup || {};
+  const check = outcomeCheck || report.outcome_check;
   const card = el("div", { class: "card report-card" },
     el("div", {}, modeTag(report.context?.mode || liveLabel), el("strong", {}, " report.md"),
       el("span", { class: "hint" }, ` · ${report.size ?? "?"} bytes · sha256 ${(report.sha256 || "").slice(0, 16)}…`)),
@@ -61,6 +77,7 @@ function reportCard(report, { liveLabel = "live" } = {}) {
     el("div", { class: "check" },
       badge(clean.container_absent && clean.network_absent ? "pass" : "fail"),
       `cleanup: container removed=${clean.container_absent}, network removed=${clean.network_absent}`),
+    outcomeCheckCard(check),
     el("p", { class: "hint" }, "A valid receipt signature means this record was not tampered with; it does not by itself prove the world-state claim inside the receipt."));
   return card;
 }
@@ -205,7 +222,8 @@ function renderReplay(out, target) {
   target.append(el("p", {}, modeTag("replay_compromised"), " ", badge(blocked.length ? "deny" : "allow"),
     `${out.steps.length} scripted proposals: ${blocked.length} BLOCKED by the gate, ${out.steps.length - blocked.length} ALLOWED and CONTAINED in the sandbox · task ${out.task_id} · ${out.elapsed_s}s`));
   if (out.log_note) target.append(el("p", { class: "hint" }, out.log_note));
-  if (out.report) target.append(reportCard(out.report, { liveLabel: "replay" }));
+  if (out.report) target.append(reportCard(out.report, { liveLabel: "replay", outcomeCheck: out.outcome_check }));
+  else if (out.outcome_check) target.append(outcomeCheckCard(out.outcome_check));
   for (const s of out.steps) {
     const card = el("div", { class: "card" },
       containment(s),
@@ -267,7 +285,8 @@ function renderTask(out, target) {
     el("span", { class: "hint" }, `planner=${out.planner || "model"} · task ${out.task_id}`)));
   target.append(kv([["task id", out.task_id], ["model", `${out.model?.provider} / ${out.model?.id}`]]));
   target.append(headline(out.outcome));
-  if (out.report) target.append(reportCard(out.report, { liveLabel: "live" }));
+  if (out.report) target.append(reportCard(out.report, { liveLabel: "live", outcomeCheck: out.outcome_check }));
+  else if (out.outcome_check) target.append(outcomeCheckCard(out.outcome_check));
   for (const t of out.turns) {
     const c = el("div", { class: "card" }, el("strong", {}, `turn ${t.turn}`));
     if (t.error) c.append(el("p", { class: "err" }, t.error));
@@ -491,9 +510,9 @@ $("#demo-run").addEventListener("click", async () => {
     const rep = await runReplay();
 
     markStory(3);
-    say("Step 3/4: runtime containment (timeout probe), then a healthy Arena task.");
+    say("Step 3/4: runtime containment suite (timeout, memory, write-outside, egress), each with a healthy follow-up.");
     showTab("arena");
-    await runContainmentThenHealthy();
+    await runContainmentThenHealthy({ suite: true });
     await new Promise((r) => setTimeout(r, 800));
 
     markStory(4);
@@ -575,24 +594,38 @@ function renderContainment(out, target) {
   showStats(out.stats);
 }
 
-async function runContainmentThenHealthy() {
-  const b = $("#containment-run");
+function summarizeContainment(out) {
+  const probes = (out.steps || []).filter((s) => s.intent === "containment_probe");
+  const bits = probes.map((p) => {
+    const killed = p.execution?.killed_by;
+    const stdout = p.execution?.stdout || "";
+    if (killed) return `${p.probe}: killed_by=${killed}`;
+    if (stdout.includes("WRITE_BLOCKED")) return `${p.probe}: WRITE_BLOCKED`;
+    if (stdout.includes("EGRESS_BLOCKED")) return `${p.probe}: EGRESS_BLOCKED`;
+    return `${p.probe}: status=${p.status}`;
+  });
+  return bits.join(" · ");
+}
+
+async function runContainmentThenHealthy({ probe = "timeout", suite = false } = {}) {
+  const buttons = ["#containment-run", "#containment-memory", "#containment-write", "#containment-egress", "#containment-suite"]
+    .map((s) => $(s)).filter(Boolean);
   const st = $("#containment-status");
   const target = $("#out-arena");
-  if (b) b.disabled = true;
-  if (st) st.textContent = "Running timeout probe through the real gate and sandbox…";
-  target.replaceChildren(el("p", { class: "spinner" }, "containment probe, then healthy task"));
+  for (const b of buttons) b.disabled = true;
+  if (st) {
+    st.textContent = suite
+      ? "Running all four runtime probes through the real gate and sandbox…"
+      : `Running ${probe} probe through the real gate and sandbox…`;
+  }
+  target.replaceChildren(el("p", { class: "spinner" }, suite ? "containment suite" : `${probe} probe, then healthy task`));
   try {
-    const out = await api("/api/arena", { mode: "containment_then_healthy" });
+    const body = suite
+      ? { mode: "containment_suite" }
+      : { mode: "containment_then_healthy", probe };
+    const out = await api("/api/arena", body);
     renderContainment(out, target);
-    if (st) {
-      const probe = out.steps?.[0];
-      const healthy = out.steps?.[1];
-      const killed = probe?.execution?.killed_by;
-      st.textContent = killed
-        ? `Probe TERMINATED (killed_by=${killed}); healthy follow-up exit=${healthy?.execution?.exit_code}. Cleanup on both receipts.`
-        : `Probe finished without killed_by (status=${probe?.status}). Check the cards below.`;
-    }
+    if (st) st.textContent = `${summarizeContainment(out)}. Healthy follow-ups included.`;
     return out;
   } catch (e) {
     target.replaceChildren(el("p", { class: "err" }, e.message));
@@ -600,11 +633,17 @@ async function runContainmentThenHealthy() {
     refreshStats();
     throw e;
   } finally {
-    if (b) b.disabled = false;
+    for (const b of buttons) b.disabled = false;
     refreshMeta();
   }
 }
-$("#containment-run")?.addEventListener("click", () => runContainmentThenHealthy().catch(() => {}));
+for (const id of ["containment-run", "containment-memory", "containment-write", "containment-egress"]) {
+  $(`#${id}`)?.addEventListener("click", (ev) => {
+    const probe = ev.currentTarget.dataset.probe || "timeout";
+    runContainmentThenHealthy({ probe }).catch(() => {});
+  });
+}
+$("#containment-suite")?.addEventListener("click", () => runContainmentThenHealthy({ suite: true }).catch(() => {}));
 
 // ---------- verify
 async function loadReceipt(id, tamper = false, cue = true) {

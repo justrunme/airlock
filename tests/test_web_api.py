@@ -36,55 +36,65 @@ class FakeRunner:
         out = Path(work_dir) / "output"
         (out / "out").mkdir(parents=True, exist_ok=True)
         code = action.code or ""
-        # Mirror the real watchdog for the Arena timeout probe without Docker.
-        if "time.sleep(" in code and "100" in code:
-            (out / "stdout.txt").write_bytes(
-                b"containment probe: sleeping past the wall-clock timeout\n"
-            )
-            (out / "stderr.txt").write_bytes(b"Timeout\n")
+        inputs = dict(input_files or {})
+
+        def finish(stdout: bytes, *, killed_by=None, exit_code=0, stderr=b"", artifacts=None):
+            (out / "stdout.txt").write_bytes(stdout)
+            (out / "stderr.txt").write_bytes(stderr)
+            arts = artifacts or []
             return Execution(
-                container_name="airlock-fake-timeout",
-                image_digest=self.image_digest,
-                runtime="runc",
-                started="2026-11-04T00:00:00+00:00",
-                ended="2026-11-04T00:00:10+00:00",
-                exit_code=137,
-                killed_by="timeout",
-                stdout_sha256=sha256(
-                    b"containment probe: sleeping past the wall-clock timeout\n"
-                ).hexdigest(),
-                stderr_sha256=sha256(b"Timeout\n").hexdigest(),
-                artifacts=[],
-                report_invalid=True,
-            )
-        if "print(1+1)" in code:
-            (out / "stdout.txt").write_bytes(b"2\n")
-            (out / "stderr.txt").write_bytes(b"")
-            return Execution(
-                container_name="airlock-fake-healthy",
+                container_name="airlock-fake",
                 image_digest=self.image_digest,
                 runtime="runc",
                 started="2026-11-04T00:00:00+00:00",
                 ended="2026-11-04T00:00:01+00:00",
-                exit_code=0,
-                stdout_sha256=sha256(b"2\n").hexdigest(),
-                artifacts=[],
+                exit_code=exit_code,
+                killed_by=killed_by,
+                stdout_sha256=sha256(stdout).hexdigest(),
+                stderr_sha256=sha256(stderr).hexdigest() if stderr else None,
+                artifacts=arts,
+                report_invalid=killed_by is not None,
             )
+
+        # Mirror Arena containment probes without Docker (not live results).
+        if "time.sleep(" in code and "100" in code:
+            return finish(
+                b"containment probe: sleeping past the wall-clock timeout\n",
+                killed_by="timeout",
+                exit_code=137,
+                stderr=b"Timeout\n",
+            )
+        if "allocating past the memory cap" in code or (
+            "chunks.append" in code and "1024 * 1024" in code
+        ):
+            return finish(
+                b"containment probe: allocating past the memory cap\n",
+                killed_by="oom",
+                exit_code=137,
+            )
+        if "extractall('/')" in code or 'extractall("/")' in code:
+            return finish(b"WRITE_BLOCKED [Errno 30] Read-only file system: '/probe.txt'\n")
+        if "FancyURLopener" in code and "retrieve(" in code:
+            return finish(b"EGRESS_BLOCKED <urlopen error [Errno -3] Temporary failure>\n")
+        if "print(1+1)" in code:
+            return finish(b"2\n")
+
+        # Report from the provided app.log so outcome_check can reach VERIFIED.
+        from collections import Counter
+
+        levels = Counter()
+        for line in inputs.get("app.log", b"").decode("utf-8", errors="replace").splitlines():
+            parts = line.split()
+            if len(parts) > 1 and parts[1] in ("ERROR", "WARN"):
+                levels[parts[1]] += 1
+        e, w = int(levels["ERROR"]), int(levels["WARN"])
         report = (
-            b"# app.log report\n\nERROR: 31  WARN: 7\n\n"
-            b"## Errors by message\n- 18 x upstream connect error\n"
-        )
-        (out / "stdout.txt").write_bytes(b"ERROR=31 WARN=7\n")
-        (out / "stderr.txt").write_bytes(b"")
+            f"# app.log report\n\nERROR: {e}  WARN: {w}\n\n"
+            "## Errors by message\n- 18 x upstream connect error\n"
+        ).encode()
         (out / "out" / "report.md").write_bytes(report)
-        return Execution(
-            container_name="airlock-fake",
-            image_digest=self.image_digest,
-            runtime="runc",
-            started="2026-11-04T00:00:00+00:00",
-            ended="2026-11-04T00:00:01+00:00",
-            exit_code=0,
-            stdout_sha256=sha256(b"ERROR=31 WARN=7\n").hexdigest(),
+        return finish(
+            f"ERROR={e} WARN={w}\n".encode(),
             artifacts=[Artifact(name="report.md", sha256=sha256(report).hexdigest())],
         )
 
@@ -676,6 +686,7 @@ def test_hero_promise_steps_and_collapsed_facts(make):
     assert "was not tampered with" in html and "world-state claim" in html
     assert "What I guarantee:" in html and "What I do not:" in html
     assert 'id="demo-run"' in html and 'id="containment-run"' in html
+    assert 'id="containment-suite"' in html and 'data-probe="egress"' in html
     assert 'href="/static/title-card.svg"' in html and 'href="/static/pipeline-card.svg"' in html
     # limitations and corpus numbers stay on the page, collapsed, with honest wording
     assert '<details id="corpus">' in html and '<details id="limits">' in html
@@ -684,11 +695,12 @@ def test_hero_promise_steps_and_collapsed_facts(make):
 
 def test_containment_then_healthy_timeout_probe(make):
     """Runtime containment (allowed by gate, killed by sandbox) then a healthy follow-up."""
-    c, runner, *_ = make(arena_per_min=10)
+    c, runner, *_ = make(arena_per_min=20)
     r = c.post("/api/arena", json={"mode": "containment_then_healthy"})
     assert r.status_code == 200, r.text
     out = r.json()
     assert out["kind"] == "containment_then_healthy" and out["mode"] == "live"
+    assert out["probe"] == "timeout"
     probe, healthy = out["steps"]
     assert probe["verdict"] == "allow"
     assert probe["execution"]["killed_by"] == "timeout"
@@ -704,19 +716,77 @@ def test_containment_then_healthy_timeout_probe(make):
     check_receipt(c, healthy["receipt_id"])
 
 
+@pytest.mark.parametrize(
+    ("probe", "marker"),
+    [
+        ("memory", "killed_by:oom"),
+        ("write", "WRITE_BLOCKED"),
+        ("egress", "EGRESS_BLOCKED"),
+    ],
+)
+def test_containment_probes_memory_write_egress(make, probe, marker):
+    """Each filmable probe is gate-allowed and shows sandbox evidence + healthy follow-up."""
+    c, runner, *_ = make(arena_per_min=20)
+    r = c.post("/api/arena", json={"mode": "containment_then_healthy", "probe": probe})
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["probe"] == probe
+    step, healthy = out["steps"]
+    assert step["verdict"] == "allow" and step["status"] == "executed"
+    assert step["context"]["probe"] == probe
+    ex = step["execution"]
+    if marker.startswith("killed_by:"):
+        assert ex["killed_by"] == marker.split(":", 1)[1]
+    else:
+        assert marker in (ex.get("stdout") or "")
+    assert healthy["verdict"] == "allow" and healthy["execution"]["exit_code"] == 0
+    assert "2" in (healthy["execution"]["stdout"] or "")
+    assert len(runner.calls) == 2
+    if probe == "write":
+        assert "probe.zip" in runner.calls[0][2]
+    check_receipt(c, step["receipt_id"])
+    check_receipt(c, healthy["receipt_id"])
+
+
+def test_containment_suite_runs_all_four_probes(make):
+    c, runner, *_ = make(arena_per_min=50)
+    r = c.post("/api/arena", json={"mode": "containment_suite"})
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["kind"] == "containment_suite" and out["probe"] == "all"
+    probes = [s for s in out["steps"] if s.get("intent") == "containment_probe"]
+    healthy = [s for s in out["steps"] if s.get("intent") == "healthy"]
+    assert [p["probe"] for p in probes] == ["timeout", "memory", "write", "egress"]
+    assert len(healthy) == 4
+    assert all(h["execution"]["exit_code"] == 0 for h in healthy)
+    assert len(runner.calls) == 8
+
+
 def test_containment_mode_does_not_weaken_the_gate(make):
     """Negative: Arena still fail-closes on network/exfil; containment is not a bypass."""
-    c, runner, *_ = make(arena_per_min=10)
+    c, runner, *_ = make(arena_per_min=20)
     denied = c.post(
         "/api/arena",
         json={"lang": "python", "code": "import socket; socket.create_connection(('1.1.1.1', 80))"},
     ).json()
     assert denied["verdict"] != "allow" and runner.calls == []
     check_receipt(c, denied["receipt_id"])
-    # curl|sh still blocked after the containment endpoint exists
     blocked = c.post("/api/arena", json={"lang": "bash", "code": HARMFUL[1]}).json()
     assert blocked["verdict"] == "deny" and blocked["status"] == "blocked"
     assert runner.calls == []
+
+
+def test_live_task_outcome_check_verified_on_this_corpus(make):
+    """Independent recount of ERROR/WARN matches report.md for the sample log."""
+    c, *_ = make([BENIGN])
+    body = c.post("/api/task", json={"kind": "real"}).json()
+    check = body["outcome_check"]
+    assert check["state"] == "VERIFIED"
+    assert check["expected"] == {"ERROR": 31, "WARN": 7}
+    assert check["reported"] == {"ERROR": 31, "WARN": 7}
+    assert "on this corpus" in check["note"]
+    assert "was not tampered with" in check["note"]
+    assert body["report"]["outcome_check"]["state"] == "VERIFIED"
 
 
 def test_pitch_stills_are_local_static_svgs(make):

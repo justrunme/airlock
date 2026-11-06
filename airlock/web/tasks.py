@@ -8,7 +8,9 @@ other than the proposed action.
 """
 
 import json
+import re
 import uuid
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -98,7 +100,66 @@ def task_outcome(turns: list[dict[str, Any]], final_answer: str | None) -> dict[
     return {"state": state, "proposed": len(steps), "blocked": blocked, "ran_ok": ran_ok}
 
 
-def extract_report(turns: list[dict[str, Any]]) -> dict[str, Any] | None:
+def recount_levels(log_bytes: bytes) -> dict[str, int]:
+    """Trusted host-side recount of severity tokens on this corpus's log.
+
+    Counts the second whitespace-separated field when it is ERROR or WARN.
+    Does not trust the model, the report, or the receipt world-state claim.
+    """
+    counts: Counter[str] = Counter()
+    for line in log_bytes.decode("utf-8", errors="replace").splitlines():
+        parts = line.split()
+        if len(parts) > 1 and parts[1] in ("ERROR", "WARN"):
+            counts[parts[1]] += 1
+    return {"ERROR": int(counts["ERROR"]), "WARN": int(counts["WARN"])}
+
+
+def _parse_report_levels(text: str) -> dict[str, int | None]:
+    """Best-effort parse of ERROR/WARN counts claimed inside report.md."""
+    found: dict[str, int | None] = {"ERROR": None, "WARN": None}
+    if not text:
+        return found
+    for level in ("ERROR", "WARN"):
+        matches = re.findall(rf"\b{level}\b\s*[=:]\s*(\d+)", text, flags=re.IGNORECASE)
+        if matches:
+            # last explicit claim wins (reports often restate the headline)
+            found[level] = int(matches[-1])
+    return found
+
+
+def outcome_check(log_bytes: bytes, report_text: str | None) -> dict[str, Any]:
+    """Compare report.md claims to a trusted recount of this corpus only.
+
+    VERIFIED: both ERROR and WARN parsed from the report and match the recount.
+    FAILED: both parsed and at least one disagrees.
+    INCONCLUSIVE: report missing or counts could not be parsed.
+
+    A valid receipt signature is not proof of this world-state claim.
+    """
+    expected = recount_levels(log_bytes)
+    parsed = _parse_report_levels(report_text or "")
+    note = (
+        "on this corpus only; host recount of the input log, not the model's words. "
+        "A valid receipt signature means the receipt was not tampered with; it does "
+        "not by itself prove the world-state claim inside the receipt."
+    )
+    if report_text is None or parsed["ERROR"] is None or parsed["WARN"] is None:
+        state = "INCONCLUSIVE"
+    elif parsed["ERROR"] == expected["ERROR"] and parsed["WARN"] == expected["WARN"]:
+        state = "VERIFIED"
+    else:
+        state = "FAILED"
+    return {
+        "state": state,
+        "expected": expected,
+        "reported": parsed,
+        "note": note,
+    }
+
+
+def extract_report(
+    turns: list[dict[str, Any]], log_bytes: bytes | None = None
+) -> dict[str, Any] | None:
     """Pull the last report.md artifact (full text when present) plus cleanup evidence.
 
     Judges use this to open/download the report without digging through every turn.
@@ -112,11 +173,12 @@ def extract_report(turns: list[dict[str, Any]]) -> dict[str, Any] | None:
                 if art.get("name") != "report.md":
                     continue
                 cleanup = step.get("cleanup") or {}
+                text = art.get("text")
                 last = {
                     "name": "report.md",
                     "sha256": art.get("sha256"),
                     "size": art.get("size"),
-                    "text": art.get("text"),
+                    "text": text,
                     "preview": art.get("preview"),
                     "action_id": (step.get("action") or {}).get("id"),
                     "receipt_id": step.get("receipt_id"),
@@ -132,6 +194,8 @@ def extract_report(turns: list[dict[str, Any]]) -> dict[str, Any] | None:
                     },
                     "context": step.get("context") or dict(LIVE_CONTEXT),
                 }
+                if log_bytes is not None:
+                    last["outcome_check"] = outcome_check(log_bytes, text)
     return last
 
 
@@ -221,7 +285,8 @@ def run_agent_task(
             )
         if n_actions >= MAX_ACTIONS:
             break
-    return {
+    report = extract_report(turns, log_bytes)
+    result: dict[str, Any] = {
         "task_id": task_id,
         "kind": kind,
         "mode": "live",
@@ -231,5 +296,8 @@ def run_agent_task(
         "turns": turns,
         "final_answer": final_answer,
         "outcome": task_outcome(turns, final_answer),
-        "report": extract_report(turns),
+        "report": report,
+        # Top-level copy for the filmable headline; same object as report.outcome_check.
+        "outcome_check": (report or {}).get("outcome_check") or outcome_check(log_bytes, None),
     }
+    return result

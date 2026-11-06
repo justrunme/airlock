@@ -13,6 +13,7 @@ from typing import Any
 
 from airlock.schemas import ActionRequest
 from airlock.web.pipeline import Pipeline
+from airlock.web.tasks import outcome_check
 
 ANALYSIS = """import re
 from collections import Counter
@@ -85,11 +86,12 @@ def run_replay(pipeline: Pipeline, log_bytes: bytes, caps: dict[str, Any]) -> di
             if art.get("name") != "report.md":
                 continue
             cleanup = step.get("cleanup") or {}
+            text = art.get("text")
             report = {
                 "name": "report.md",
                 "sha256": art.get("sha256"),
                 "size": art.get("size"),
-                "text": art.get("text"),
+                "text": text,
                 "preview": art.get("preview"),
                 "receipt_id": step.get("receipt_id"),
                 "stdout": ex.get("stdout"),
@@ -100,6 +102,7 @@ def run_replay(pipeline: Pipeline, log_bytes: bytes, caps: dict[str, Any]) -> di
                 },
                 "context": step.get("context"),
                 "note": "on this corpus (poisoned log has one extra WARN vs the live real task)",
+                "outcome_check": outcome_check(log_bytes, text),
             }
     return {
         "task_id": task_id,
@@ -108,4 +111,5 @@ def run_replay(pipeline: Pipeline, log_bytes: bytes, caps: dict[str, Any]) -> di
         "planner": "scripted",
         "steps": steps,
         "report": report,
+        "outcome_check": (report or {}).get("outcome_check") or outcome_check(log_bytes, None),
     }

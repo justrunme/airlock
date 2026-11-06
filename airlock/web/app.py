@@ -88,10 +88,12 @@ class TaskRequest(BaseModel):
 
 
 class ArenaContainment(BaseModel):
-    """Arena mode: timeout probe then a healthy follow-up (no LLM, production gate)."""
+    """Arena mode: runtime probe then a healthy follow-up (no LLM, production gate)."""
 
     model_config = ConfigDict(extra="forbid")
-    mode: Literal["containment_then_healthy"]
+    mode: Literal["containment_then_healthy", "containment_suite"]
+    # timeout is the original probe; memory / write / egress use the same path.
+    probe: Literal["timeout", "memory", "write", "egress"] = "timeout"
 
 
 def _rule_codes() -> list[str]:
@@ -434,7 +436,7 @@ def create_app(
             if not isinstance(raw, dict):
                 raise ValueError("not an object")
             mode = raw.get("mode")
-            if mode == "containment_then_healthy":
+            if mode in ("containment_then_healthy", "containment_suite"):
                 req: ArenaCode | ArenaInject | ArenaContainment = ArenaContainment.model_validate(
                     raw
                 )
@@ -447,14 +449,24 @@ def create_app(
             detail = str(e).splitlines()[0][:300] if str(e) else "invalid request"
             return _err(422, "bad_request", detail)
         if isinstance(req, ArenaContainment):
-            # Two arena slots: timeout probe then healthy follow-up. No LLM.
-            # Counts as two attempts so the per-IP budget still applies honestly.
-            if r := limited(request, "arena_min", "arena_day"):
-                return r
+            # Each probe + healthy follow-up is two arena slots. No LLM.
+            # One slot was already consumed by the limiter at the top of this handler.
+            n_pairs = 4 if req.mode == "containment_suite" else 1
+            for _ in range(n_pairs * 2 - 1):
+                if r := limited(request, "arena_min", "arena_day"):
+                    return r
             try:
-                out = await run_in_threadpool(
-                    containment.run_containment_then_healthy, pipeline, ARENA_CAPS
-                )
+                if req.mode == "containment_suite":
+                    out = await run_in_threadpool(
+                        containment.run_containment_suite, pipeline, ARENA_CAPS
+                    )
+                else:
+                    out = await run_in_threadpool(
+                        containment.run_containment_then_healthy,
+                        pipeline,
+                        ARENA_CAPS,
+                        req.probe,
+                    )
             except BusyError:
                 return _err(503, "busy", "too many sandboxes running, retry shortly")
             for step in out["steps"]:
