@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1338** in 24 files.
+Total collected tests: **1340** in 24 files.
 
 | File | Tests |
 |------|------:|
@@ -16,7 +16,7 @@ Total collected tests: **1338** in 24 files.
 | `tests/test_e2e.py` | 2 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
-| `tests/test_outcome_check.py` | 9 |
+| `tests/test_outcome_check.py` | 11 |
 | `tests/test_policy.py` | 12 |
 | `tests/test_policy_corpus.py` | 50 |
 | `tests/test_policy_corpus_expanded.py` | 145 |
@@ -104,6 +104,8 @@ Total collected tests: **1338** in 24 files.
 | `test_outcome_check_inconclusive_without_fence` |  |
 | `test_prose_outside_fence_ignored_when_fence_ok` |  |
 | `test_nested_in_four_backtick_example_is_inconclusive` | Valid ```airlock-counts inside a ```` markdown example is not authoritative. |
+| `test_bare_four_backtick_wrapper_is_inconclusive` | Bare ```` (no language tag) still opens; nested counts must not VERIFIED. |
+| `test_wrapper_variants_do_not_count_as_authoritative` | Tagged/bare backtick and tilde wrappers of varying lengths keep examples out. |
 | `test_valid_fence_then_unclosed_second_opening_is_inconclusive` | A second top-level ```airlock-counts opening (even unclosed) voids authority. |
 | `test_plain_authoritative_fence_still_verified` |  |
 

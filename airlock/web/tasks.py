@@ -131,8 +131,8 @@ def recount_levels(log_bytes: bytes) -> dict[str, int]:
 _MAX_COUNT_DIGITS = 9
 _CLEAN_INT = re.compile(rf"^\d{{1,{_MAX_COUNT_DIGITS}}}$")
 _COUNT_LINE = re.compile(r"^(ERROR|WARN):\s*(\S+)\s*$")
-# CommonMark-style fence line: 3+ backticks, optional info string (open) or empty (close).
-_FENCE_LINE = re.compile(r"^(`{3,})(.*)$")
+# CommonMark-style fence: 3+ backticks or tildes; optional info (open) / empty (close).
+_FENCE_LINE = re.compile(r"^([`~]{3,})(.*)$")
 
 
 def format_counts_block(error: int, warn: int) -> str:
@@ -176,10 +176,10 @@ def _body_counts(body_lines: list[str]) -> dict[str, Any]:
 def _parse_counts_block(text: str) -> dict[str, Any]:
     """Line-oriented fence walk: only a top-level closed ``airlock-counts`` counts.
 
-    Nested fences (e.g. inside a four-backtick markdown example), duplicate
-    tagged openings, and unclosed tagged openings are INCONCLUSIVE. Prose
-    outside a single authoritative fence is ignored. Does not use regex
-    ``findall`` over the whole document.
+    Bare fences at top level OPEN a code block (CommonMark); they are not ignored
+    closes. Nested ``airlock-counts`` inside backtick/tilde wrappers (tagged or
+    bare, any length ≥3) are not authoritative. Duplicate/unclosed tagged openings
+    are INCONCLUSIVE. Prose outside one authoritative fence is ignored.
     """
     empty = {
         "ERROR": {"value": None, "status": "missing"},
@@ -189,10 +189,10 @@ def _parse_counts_block(text: str) -> dict[str, Any]:
     if not text:
         return empty
 
-    # Stack of surrounding non-counts fences: (tick_count,).
-    outer: list[int] = []
-    # When collecting a top-level airlock-counts body: opening tick count.
-    counts_ticks: int | None = None
+    # Surrounding non-counts fences: (tick_count, fence_char).
+    outer: list[tuple[int, str]] = []
+    # Authoritative counts open: (tick_count, fence_char).
+    counts_open: tuple[int, str] | None = None
     counts_body: list[str] = []
     completed: list[list[str]] = []
     counts_openings = 0
@@ -200,47 +200,46 @@ def _parse_counts_block(text: str) -> dict[str, Any]:
     for raw in text.splitlines():
         m = _FENCE_LINE.match(raw)
         if m:
-            ticks = len(m.group(1))
+            marker = m.group(1)
+            ticks = len(marker)
+            char = marker[0]
             info = m.group(2).strip()
             tag = info.split()[0] if info else ""
 
-            if counts_ticks is not None:
-                # Closing the authoritative counts fence (empty info, enough ticks).
-                if not info and ticks >= counts_ticks:
+            if counts_open is not None:
+                c_ticks, c_char = counts_open
+                if not info and char == c_char and ticks >= c_ticks:
                     completed.append(counts_body)
-                    counts_ticks = None
+                    counts_open = None
                     counts_body = []
                     continue
-                # Fence-looking line inside the counts body — not a valid body line.
                 counts_body.append(raw)
                 continue
 
             if outer:
-                # Inside an outer fence: shorter/equal tagged lines are content,
-                # including nested ```airlock-counts examples (not authoritative).
-                if not info and ticks >= outer[-1]:
+                o_ticks, o_char = outer[-1]
+                # Same fence family + enough ticks + empty info closes the outer.
+                if not info and char == o_char and ticks >= o_ticks:
                     outer.pop()
+                # Else content (nested shorter/other-family fences, including
+                # nested airlock-counts examples).
                 continue
 
-            # Top-level fence.
+            # Top-level: any fence line opens. Bare fences open too (not closes).
             if tag == COUNTS_FENCE:
                 counts_openings += 1
                 if counts_openings > 1:
                     return _ambiguous("duplicate_fence")
-                counts_ticks = ticks
+                counts_open = (ticks, char)
                 counts_body = []
                 continue
-            if info:
-                outer.append(ticks)
-                continue
-            # Bare close at top level — ignore.
+            outer.append((ticks, char))
             continue
 
-        if counts_ticks is not None:
+        if counts_open is not None:
             counts_body.append(raw)
 
-    if counts_ticks is not None:
-        # Unclosed top-level ```airlock-counts (including after a completed one).
+    if counts_open is not None:
         return _ambiguous("unclosed_fence")
     if counts_openings == 0:
         return empty

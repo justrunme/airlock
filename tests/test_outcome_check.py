@@ -66,6 +66,31 @@ def test_nested_in_four_backtick_example_is_inconclusive():
     assert outcome_check(log, report)["state"] == "INCONCLUSIVE"
 
 
+def test_bare_four_backtick_wrapper_is_inconclusive():
+    """Bare ```` (no language tag) still opens; nested counts must not VERIFIED."""
+    log = sample_log(False)
+    report = "````\n```airlock-counts\nERROR: 31\nWARN: 7\n```\n````\n"
+    assert outcome_check(log, report)["state"] == "INCONCLUSIVE"
+
+
+def test_wrapper_variants_do_not_count_as_authoritative():
+    """Tagged/bare backtick and tilde wrappers of varying lengths keep examples out."""
+    log = sample_log(False)
+    inner = "```airlock-counts\nERROR: 31\nWARN: 7\n```\n"
+    wrappers = [
+        ("````\n", "````\n"),
+        ("````markdown\n", "````\n"),
+        ("```\n", "```\n"),
+        ("```text\n", "```\n"),
+        ("~~~~~\n", "~~~~~\n"),
+        ("~~~md\n", "~~~\n"),
+        ("~~~~~~\n", "~~~~~~\n"),
+    ]
+    for open_, close in wrappers:
+        report = f"{open_}Example:\n{inner}{close}"
+        assert outcome_check(log, report)["state"] == "INCONCLUSIVE", repr(open_)
+
+
 def test_valid_fence_then_unclosed_second_opening_is_inconclusive():
     """A second top-level ```airlock-counts opening (even unclosed) voids authority."""
     log = sample_log(False)
