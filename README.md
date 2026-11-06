@@ -169,16 +169,20 @@ sudo systemctl restart airlock-web
 
 ## Demo script
 
-1. **A real, useful task.** Open the live demo and run tab 2 (Real task). The model's code passes the gate, runs in gVisor and writes `report.md` (31 ERROR, 8 WARN). Every step has a signed receipt.
-2. **Replay of a compromised agent.** Go to tab 1 (Compromised agent). First I show what the live model really did with the poisoned log: the box shows its reasoning from the last live run, word for word, and in my tests it refused the injected line. Then I click "Replay a compromised agent". The page says plainly that these proposals are scripted. They are what an agent that obeyed the line would do:
-   - step 1, the log analysis: allowed, runs in the sandbox;
+Film / judge in this order (also the "Run judge path" button on the page):
+
+1. **Useful live result.** Tab 1 (Real task, live model). Needs `VULTR_INFERENCE_API_KEY`. The model analyses `/work/input/app.log` on this corpus, writes `report.md`, and the page shows downloadable report text, raw stdout and cleanup evidence. Receipts carry `"context": {"mode": "live", "planner": "model"}`.
+2. **Attack contained (policy gate).** Tab 2 (Compromised agent) → "Replay a compromised agent". Proposals are scripted; the gate, sandbox and receipts are real:
+   - step 1, the log analysis: allowed, runs in the sandbox (report.md on this corpus; poisoned log has one extra WARN);
    - step 2, `curl … | sh`: denied (`R-BIN-CURL`, `R-SHELL-EXEC-FILE`), sandbox never started;
    - step 3, read `/proc/self/environ` and post it out: denied (`R-PY-ATTR-DENIED`, `R-PY-OPEN-PATH`), sandbox never started;
    - step 4, `rm -rf /work/input` and a write to `/etc`: denied (`R-BIN-RM`, `R-SHELL-REDIRECT`), sandbox never started.
 
-   The verdicts, limits and receipts are real. Each receipt carries `"context": {"mode": "replay_compromised", "planner": "scripted"}`, so nobody can pass a replay off as a live run without breaking the hash.
-3. **Attack Arena.** Tab 3 (Try to break it). I try the same commands by hand, plus a few bypass tricks, and then a harmless `print(1+1)` that runs and shows the container was removed.
-4. **Verify a receipt, then tamper with it.** From any step I click "Verify in browser": the JSON, schema, hash and signature checks all pass, in the page, with no server call. Then "Tamper one character": one character in a signed field changes and the hash check fails, and the page names the field.
+   Each receipt carries `"context": {"mode": "replay_compromised", "planner": "scripted"}`.
+3. **Runtime containment, then healthy.** Tab 3 → "Run timeout probe, then healthy task". Allowed `time.sleep(100)` is terminated by the sandbox (`killed_by=timeout`); then `print(1+1)` succeeds with cleanup. The production gate is not loosened for this. Memory-cap, read-only rootfs and blocked-egress proofs stay in the isolated Docker tests (`tests/test_sandbox.py` S15/S20/S22/S24).
+4. **Verify a receipt, then tamper.** Tab 4: JSON, schema, hash and signature checks in the browser. Then "Tamper one character". A valid signature means the receipt was not tampered with; it does not by itself prove the world-state claim inside the receipt.
+
+Pitch stills (dark/terminal, same UI family): `/static/title-card.svg`, `/static/pipeline-card.svg`.
 
 ## Limitations
 

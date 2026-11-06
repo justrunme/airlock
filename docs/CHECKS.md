@@ -6,11 +6,12 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1297** in 19 files.
+Total collected tests: **1307** in 20 files.
 
 | File | Tests |
 |------|------:|
 | `tests/test_agent.py` | 6 |
+| `tests/test_containment.py` | 3 |
 | `tests/test_e2e.py` | 2 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
@@ -26,8 +27,8 @@ Total collected tests: **1297** in 19 files.
 | `tests/test_sandbox_unit.py` | 37 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
-| `tests/test_web_api.py` | 69 |
-| `tests/test_web_copy.py` | 3 |
+| `tests/test_web_api.py` | 73 |
+| `tests/test_web_copy.py` | 6 |
 | `tests/test_web_js_crosscheck.py` | 51 |
 
 ## `tests/test_agent.py`
@@ -40,6 +41,14 @@ Total collected tests: **1297** in 19 files.
 | `TestAgent::test_agent_requires_key` | Agent requires VULTR_INFERENCE_API_KEY. |
 | `TestAgent::test_agent_default_base_url` | Agent defaults to Vultr Inference base URL. |
 | `TestAgent::test_agent_default_model` | Agent defaults to qwen3.8-27b model. |
+
+## `tests/test_containment.py`
+
+| Test | Description |
+|------|-------------|
+| `test_timeout_probe_is_allowed_by_production_gate` | The Arena timeout probe must pass the gate; containment is runtime, not deny. |
+| `test_healthy_followup_is_allowed_by_production_gate` |  |
+| `test_gate_still_denies_egress_and_readonly_writes` | Negative: do not stage containment by weakening fail-closed path checks. |
 
 ## `tests/test_e2e.py`
 
@@ -1294,6 +1303,7 @@ Total collected tests: **1297** in 19 files.
 | `TestBasics::test_policy_separates_job_nproc_from_cgroup_headroom` |  |
 | `TestBasics::test_ui_served_without_external_resources` |  |
 | `TestTask::test_real_task_runs_and_signs` |  |
+| `TestTask::test_real_task_exposes_downloadable_report_raw_output_and_cleanup` | Contract for the useful live result: report text, stdout, cleanup evidence. |
 | `TestTask::test_injected_task_blocked_with_reason` |  |
 | `TestTask::test_injected_log_contains_injection` |  |
 | `TestTask::test_action_budget` |  |
@@ -1352,6 +1362,9 @@ Total collected tests: **1297** in 19 files.
 | `test_favicon_served` |  |
 | `test_replay_explains_the_extra_warn_line` |  |
 | `test_hero_promise_steps_and_collapsed_facts` |  |
+| `test_containment_then_healthy_timeout_probe` | Runtime containment (allowed by gate, killed by sandbox) then a healthy follow-up. |
+| `test_containment_mode_does_not_weaken_the_gate` | Negative: Arena still fail-closes on network/exfil; containment is not a bypass. |
+| `test_pitch_stills_are_local_static_svgs` |  |
 | `test_blocked_steps_carry_the_fields_the_strip_shows` |  |
 | `test_blocked_card_claims_nothing_until_filled` |  |
 | `test_hero_reasons_cover_every_rule_the_replay_fires` |  |
@@ -1365,6 +1378,9 @@ Total collected tests: **1297** in 19 files.
 | `test_process_cap_is_named_rlimit_nproc` | The job's process cap is RLIMIT_NPROC, not a docker pids count. |
 | `test_no_bare_zero_false_allow_claim` | Every '0 false-ALLOW' must be scoped to a corpus and the independent corpus named. |
 | `test_corpus_table_renders_independent_metrics` | The corpus table must show the independent corpus from metrics.json. |
+| `test_live_and_replay_are_labelled` | Judges must see live vs replay without mistaking scripted proposals for a model call. |
+| `test_judge_path_orders_useful_attack_probe_verify` | Filmable story: useful live result → attack → runtime probe → receipt/tamper. |
+| `test_no_employer_names_in_ui` |  |
 
 ## `tests/test_web_js_crosscheck.py`
 

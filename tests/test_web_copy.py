@@ -33,3 +33,32 @@ def test_corpus_table_renders_independent_metrics():
     """The corpus table must show the independent corpus from metrics.json."""
     assert "m.independent" in JS
     assert "false_allow_security_relevant" in JS
+
+
+def test_live_and_replay_are_labelled():
+    """Judges must see live vs replay without mistaking scripted proposals for a model call."""
+    text = _text(HTML)
+    assert 'class="mode-tag">live' in HTML
+    assert 'class="mode-tag">replay' in HTML
+    assert "replay" in text and "live" in text
+    assert "replay_compromised" in JS
+    assert "was not tampered with" in text
+
+
+def test_judge_path_orders_useful_attack_probe_verify():
+    """Filmable story: useful live result → attack → runtime probe → receipt/tamper."""
+    assert 'data-step="1"' in HTML and "Useful result" in HTML
+    assert 'data-step="2"' in HTML and "Attack contained" in HTML
+    assert 'data-step="3"' in HTML and "Runtime probe" in HTML
+    assert 'data-step="4"' in HTML and "Receipt" in HTML
+    assert "containment_then_healthy" in JS
+    assert "Download report.md" in JS
+    i_real = HTML.index('data-tab="real"')
+    i_inj = HTML.index('data-tab="injected"')
+    i_arena = HTML.index('data-tab="arena"')
+    i_ver = HTML.index('data-tab="verify"')
+    assert i_real < i_inj < i_arena < i_ver
+
+
+def test_no_employer_names_in_ui():
+    assert "CONTACT Software" not in HTML and "CONTACT Software" not in JS

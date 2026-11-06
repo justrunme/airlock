@@ -98,6 +98,43 @@ def task_outcome(turns: list[dict[str, Any]], final_answer: str | None) -> dict[
     return {"state": state, "proposed": len(steps), "blocked": blocked, "ran_ok": ran_ok}
 
 
+def extract_report(turns: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Pull the last report.md artifact (full text when present) plus cleanup evidence.
+
+    Judges use this to open/download the report without digging through every turn.
+    Claims about ERROR/WARN counts are only as good as this corpus's sample log.
+    """
+    last: dict[str, Any] | None = None
+    for turn in turns:
+        for step in turn.get("actions") or []:
+            ex = step.get("execution") or {}
+            for art in ex.get("artifacts") or []:
+                if art.get("name") != "report.md":
+                    continue
+                cleanup = step.get("cleanup") or {}
+                last = {
+                    "name": "report.md",
+                    "sha256": art.get("sha256"),
+                    "size": art.get("size"),
+                    "text": art.get("text"),
+                    "preview": art.get("preview"),
+                    "action_id": (step.get("action") or {}).get("id"),
+                    "receipt_id": step.get("receipt_id"),
+                    "stdout": ex.get("stdout"),
+                    "stderr": ex.get("stderr"),
+                    "exit_code": ex.get("exit_code"),
+                    "killed_by": ex.get("killed_by"),
+                    "runtime": ex.get("runtime"),
+                    "cleanup": {
+                        "container_absent": cleanup.get("container_absent"),
+                        "network_absent": cleanup.get("network_absent"),
+                        "evidence": cleanup.get("evidence"),
+                    },
+                    "context": step.get("context") or dict(LIVE_CONTEXT),
+                }
+    return last
+
+
 def run_agent_task(
     llm, pipeline: Pipeline, log_bytes: bytes, kind: str, on_progress=None
 ) -> dict[str, Any]:
@@ -187,9 +224,12 @@ def run_agent_task(
     return {
         "task_id": task_id,
         "kind": kind,
+        "mode": "live",
+        "planner": "model",
         "model": model.model_dump(),
         "task_prompt": TASK_PROMPT,
         "turns": turns,
         "final_answer": final_answer,
         "outcome": task_outcome(turns, final_answer),
+        "report": extract_report(turns),
     }
