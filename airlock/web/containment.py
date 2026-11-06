@@ -1,10 +1,8 @@
 """Runtime containment probes used by the demo Arena path.
 
-Only probes that pass the *current* production gate and fail closed at the
-sandbox are offered as filmable runtime containment. Timeout and memory meet
-that bar. Write-outside and egress are not staged via policy gaps: those entry
-points are denied by the gate (zip extract destinations, FancyURLopener /
-retrieve). Gate deny vs sandbox containment stay distinct.
+Owner-confirmed demo scope: timeout and memory only, claimed on camera only after
+a genuine deployed Docker PASS. Network isolation and read-only / write-outside
+are not demonstrated on this path (UNSUPPORTED if requested; no policy-gap staging).
 
 Each probe result carries structured evidence: PASS / FAILED / INCONCLUSIVE /
 UNSUPPORTED. Green (PASS) requires gate allow, mechanism evidence, a healthy
@@ -65,22 +63,17 @@ PROBE_EXPECT: dict[SupportedProbe, dict[str, str]] = {
 UNSUPPORTED: dict[UnsupportedProbe, dict[str, str]] = {
     "write": {
         "reason": (
-            "Write-outside is not offered as a runtime containment demo: "
-            "zipfile.extract/extractall destinations outside /work/out/ are "
-            "denied by the production gate (R-PY-ZIP-EXTRACT). Rootfs "
-            "read-only does not protect writable tmpfs mounts such as /tmp; "
-            "those must stay gate-denied. See tests/test_sandbox.py S15 for "
-            "direct sandbox read-only proofs that bypass the gate."
+            "Read-only / write-outside is not demonstrated on the public runtime "
+            "demo (owner scope: timeout + memory only). Not staged via policy gaps. "
+            "Separate unit proofs: tests/test_sandbox.py S15."
         ),
         "gate_rule": "R-PY-ZIP-EXTRACT",
     },
     "egress": {
         "reason": (
-            "Blocked egress is not offered as a runtime containment demo: "
-            "network-capable urllib entry points (FancyURLopener, retrieve, "
-            "urlopen, urlretrieve) are denied by the production gate. "
-            "--network none remains the sandbox backstop for anything that "
-            "still reaches a container. See tests/test_sandbox.py S19/S20."
+            "Network / blocked egress is not demonstrated on the public runtime "
+            "demo (owner scope: timeout + memory only). Not staged via policy gaps. "
+            "Separate unit proofs: tests/test_sandbox.py S19/S20."
         ),
         "gate_rule": "R-PY-ATTR-DENIED",
     },

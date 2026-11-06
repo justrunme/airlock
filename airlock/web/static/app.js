@@ -510,12 +510,12 @@ $("#demo-run").addEventListener("click", async () => {
     const rep = await runReplay();
 
     markStory(3);
-    say("Step 3/4: runtime containment suite (timeout then memory), each with a healthy follow-up.");
+    say("Step 3/4: timeout + memory only (not network / read-only). Claim PASS only from this live Docker run.");
     showTab("arena");
     const cont = await runContainmentThenHealthy({ suite: true });
     const contState = cont?.result?.state;
     if (contState !== "PASS") {
-      say(`Step 3/4 stopped: containment ${contState || "unknown"}${cont?.incomplete ? " (incomplete)" : ""}. Judge path does not advance to verify without PASS.`);
+      say(`Step 3/4 stopped: containment ${contState || "unknown"}${cont?.incomplete ? " (incomplete)" : ""}. No false green — judge path does not advance without a live PASS.`);
       return;
     }
     await new Promise((r) => setTimeout(r, 800));
