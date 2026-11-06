@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-label="Airlock pipeline: plan, gate, gVisor sandbox, signed receipt">
   <rect width="1280" height="720" fill="#0b0d12"/>
   <text x="64" y="84" fill="#e6e6e6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="36" font-weight="700">Airlock pipeline</text>
-  <text x="64" y="124" fill="#9aa0a6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20">Blast Radius Zero · team Airlock BR0</text>
+  <text x="64" y="124" fill="#9aa0a6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20">Blast Radius Zero Â· team Airlock BR0</text>
 
   <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle">
     <rect x="60" y="260" width="220" height="120" rx="12" fill="#171a21" stroke="#2a2f3a" stroke-width="2"/>
@@ -19,19 +19,19 @@
 
     <rect x="600" y="260" width="260" height="120" rx="12" fill="#171a21" stroke="#2a2f3a" stroke-width="2"/>
     <text x="730" y="310" fill="#e6e6e6" font-size="24" font-weight="700">gVisor sandbox</text>
-    <text x="730" y="346" fill="#9aa0a6" font-size="16">network none · caps</text>
+    <text x="730" y="346" fill="#9aa0a6" font-size="16">network none Â· caps</text>
 
     <line x1="860" y1="320" x2="910" y2="320" stroke="#58a6ff" stroke-width="3"/>
 
     <rect x="910" y="260" width="280" height="120" rx="12" fill="#171a21" stroke="#3fb950" stroke-width="2"/>
     <text x="1050" y="310" fill="#e6e6e6" font-size="24" font-weight="700">Signed receipt</text>
-    <text x="1050" y="346" fill="#9aa0a6" font-size="16">Ed25519 · hash chain</text>
+    <text x="1050" y="346" fill="#9aa0a6" font-size="16">Ed25519 Â· hash chain</text>
   </g>
 
   <path d="M440 380 V480 H1050 V380" fill="none" stroke="#f85149" stroke-width="2"/>
   <circle cx="440" cy="480" r="14" fill="#3d1214" stroke="#f85149" stroke-width="2"/>
   <path d="M434 474 l12 12 M446 474 l-12 12" stroke="#f85149" stroke-width="2"/>
-  <text x="470" y="520" fill="#f85149" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">deny: stop here  no container  decision still signed</text>
+  <text x="470" y="520" fill="#f85149" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">deny: stop here Â· no container Â· decision still signed</text>
 
   <text x="64" y="620" fill="#9aa0a6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">Runtime containment (timeout / mem / read-only / egress) is separate from the gate deny path.</text>
   <text x="64" y="656" fill="#9aa0a6" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">Claims about detection rates are on this corpus only.</text>
