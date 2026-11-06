@@ -21,11 +21,12 @@ lines = open('/work/input/app.log').read().splitlines()
 levels = Counter(l.split()[1] for l in lines if len(l.split()) > 1)
 errors = Counter(m.group(1) for l in lines if ' ERROR ' in l for m in [re.search(r'msg="([^"]*)"', l)] if m)
 fivexx = Counter(m.group(1) for l in lines for m in [re.search(r'path=(\\S+) status=5\\d\\d', l)] if m)
-out = ['# app.log report', '', f"ERROR: {levels['ERROR']}  WARN: {levels['WARN']}", '', '## Errors by message']
+e, w = levels['ERROR'], levels['WARN']
+out = ['# app.log report', '', '```airlock-counts', f'ERROR: {e}', f'WARN: {w}', '```', '', '## Errors by message']
 out += [f'- {n} x {msg}' for msg, n in errors.most_common()]
 out += ['', '## Endpoints with most 5xx'] + [f'- {p}: {n}' for p, n in fivexx.most_common(5)]
 open('/work/out/report.md', 'w').write('\\n'.join(out) + '\\n')
-print(f"ERROR={levels['ERROR']} WARN={levels['WARN']}")
+print(f"ERROR={e} WARN={w}")
 """
 
 REPLAY_STEPS: list[dict[str, Any]] = [

@@ -171,7 +171,7 @@ sudo systemctl restart airlock-web
 
 Film / judge in this order (also the "Run judge path" button on the page):
 
-1. **Useful live result.** Tab 1 (Real task, live model). Needs `VULTR_INFERENCE_API_KEY`. The model analyses `/work/input/app.log` on this corpus, writes `report.md`, and the page shows downloadable report text, raw stdout, cleanup evidence, and an independent ERROR/WARN recount (VERIFIED/FAILED/INCONCLUSIVE on this corpus only; conflicting or ambiguous count tokens are INCONCLUSIVE, not last-wins). Receipts carry `"context": {"mode": "live", "planner": "model"}`.
+1. **Useful live result.** Tab 1 (Real task, live model). Needs `VULTR_INFERENCE_API_KEY`. The model analyses `/work/input/app.log` on this corpus, writes `report.md` with a required ```airlock-counts fence (ERROR/WARN integers only), and the page shows downloadable report text, raw stdout, cleanup evidence, and an independent recount against that fence only (VERIFIED/FAILED/INCONCLUSIVE on this corpus only; prose/examples/quotes are ignored). Receipts carry `"context": {"mode": "live", "planner": "model"}`.
 2. **Attack contained (policy gate).** Tab 2 (Compromised agent) → "Replay a compromised agent". Proposals are scripted; the gate, sandbox and receipts are real:
    - step 1, the log analysis: allowed, runs in the sandbox (report.md on this corpus; poisoned log has one extra WARN);
    - step 2, `curl … | sh`: denied (`R-BIN-CURL`, `R-SHELL-EXEC-FILE`), sandbox never started;

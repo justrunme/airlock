@@ -47,7 +47,7 @@ function outcomeCheckCard(check) {
   const cls = check.state === "VERIFIED" ? "pass" : check.state === "FAILED" ? "fail" : "neutral";
   return el("div", { class: "card outcome-check" },
     el("div", {}, badge(check.state, cls), el("strong", {}, " Independent outcome check"),
-      el("span", { class: "hint" }, " — host recount of ERROR/WARN on this corpus vs report.md")),
+      el("span", { class: "hint" }, " — host recount vs ```airlock-counts fence only (prose ignored)")),
     kv([
       ["expected ERROR", check.expected?.ERROR],
       ["expected WARN", check.expected?.WARN],
@@ -512,7 +512,12 @@ $("#demo-run").addEventListener("click", async () => {
     markStory(3);
     say("Step 3/4: runtime containment suite (timeout then memory), each with a healthy follow-up.");
     showTab("arena");
-    await runContainmentThenHealthy({ suite: true });
+    const cont = await runContainmentThenHealthy({ suite: true });
+    const contState = cont?.result?.state;
+    if (contState !== "PASS") {
+      say(`Step 3/4 stopped: containment ${contState || "unknown"}${cont?.incomplete ? " (incomplete)" : ""}. Judge path does not advance to verify without PASS.`);
+      return;
+    }
     await new Promise((r) => setTimeout(r, 800));
 
     markStory(4);

@@ -29,26 +29,46 @@ def test_fancyurlopener_and_retrieve_denied():
 
 
 def test_zip_extract_destinations():
-    # Writable tmpfs outside /work/out — gate must deny (RO rootfs is not enough).
     for dest in ("'/'", "'/tmp'", "'/tmp/out'", "'/work'", "'/work/input'"):
         d = _decide(f"import zipfile\nzipfile.ZipFile('/work/input/a.zip').extractall({dest})\n")
         assert d.verdict == "deny", dest
         assert "R-PY-ZIP-EXTRACT" in d.rules_fired
 
-    # Default destination (cwd /work) denied.
     d = _decide("import zipfile\nzipfile.ZipFile('/work/input/a.zip').extractall()\n")
     assert d.verdict == "deny"
 
-    # Explicit member extract to /tmp denied.
     d = _decide(
         "import zipfile\nzipfile.ZipFile('/work/input/a.zip').extract('a.txt', path='/tmp')\n"
     )
     assert d.verdict == "deny"
 
-    # Under /work/out still allowed.
-    d = _decide(
-        "import zipfile\n"
-        "zipfile.ZipFile('/work/input/a.zip').extractall('/work/out/x')\n"
-        "print('ok')\n"
+    # Exact /work/out directory and confined descendants are allowed.
+    for dest in ("'/work/out'", "'/work/out/x'"):
+        d = _decide(
+            f"import zipfile\n"
+            f"zipfile.ZipFile('/work/input/a.zip').extractall({dest})\n"
+            f"print('ok')\n"
+        )
+        assert d.verdict == "allow", (dest, d.rules_fired, d.reason)
+
+
+def test_zip_extractall_bound_method_and_getattr_denied():
+    """Observation (b): destination checks alone miss bound refs / getattr."""
+    bound = _decide(
+        "import zipfile\nz=zipfile.ZipFile('/work/input/a.zip')\nf=z.extractall\nf('/tmp')\n"
     )
-    assert d.verdict == "allow", (d.rules_fired, d.reason)
+    assert bound.verdict == "deny"
+    assert "R-PY-PATH-METHOD-REF" in bound.rules_fired
+
+    g = _decide(
+        "import zipfile\nz=zipfile.ZipFile('/work/input/a.zip')\ngetattr(z,'extractall')('/tmp')\n"
+    )
+    assert g.verdict == "deny"
+    assert "R-PY-PATH-METHOD-REF" in g.rules_fired
+
+    # Callback-style reference without an immediate call.
+    cb = _decide(
+        "import zipfile\nz=zipfile.ZipFile('/work/input/a.zip')\ncbs=[z.extractall]\nprint(cbs)\n"
+    )
+    assert cb.verdict == "deny"
+    assert "R-PY-PATH-METHOD-REF" in cb.rules_fired

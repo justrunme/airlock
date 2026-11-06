@@ -63,13 +63,20 @@ def test_former_bypass_probes_are_now_gate_denied():
 
 
 def test_zip_extract_under_work_out_still_allowed():
-    d = _decide(
+    for dest in ("/work/out", "/work/out/extracted"):
+        d = _decide(
+            "python",
+            "import zipfile\n"
+            f"zipfile.ZipFile('/work/input/a.zip').extractall('{dest}')\n"
+            "print('ok')\n",
+        )
+        assert d.verdict == "allow", (dest, d.rules_fired, d.reason)
+
+    bound = _decide(
         "python",
-        "import zipfile\n"
-        "zipfile.ZipFile('/work/input/a.zip').extractall('/work/out/extracted')\n"
-        "print('ok')\n",
+        "import zipfile\nz=zipfile.ZipFile('/work/input/a.zip')\nf=z.extractall\nf('/tmp')\n",
     )
-    assert d.verdict == "allow", (d.rules_fired, d.reason)
+    assert bound.verdict == "deny"
 
 
 def test_unsupported_probe_metadata_is_honest():

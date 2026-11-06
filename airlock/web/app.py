@@ -253,6 +253,11 @@ def create_app(
                 "task_per_ip_per_day": s.task_per_day,
                 "llm_tasks_global_per_day": s.llm_global_per_day,
                 "concurrent_sandboxes": s.max_concurrent,
+                "note": (
+                    "Minute and day counters are separate; a multi-limiter admit "
+                    "either succeeds on every named limiter or leaves all unchanged. "
+                    "Malformed /api/arena bodies still consume 1 arena slot before rejection."
+                ),
             },
             "rule_codes": rule_codes,
             "verifier_checks": ["V-EXIT-OK", "secret scan of stdout", "container/network removed"],
@@ -326,13 +331,29 @@ def create_app(
     def arena_stats():
         return stats.snapshot()
 
+    # Coordinates peek+reserve across arena_min and arena_day so a request that
+    # fits the minute budget but not the day budget does not consume the minute.
+    # Each limiter remains independently counted; this lock only spans admission.
+    admit_lock = threading.Lock()
+
     def limited(request: Request, *names: str, slots: int = 1) -> JSONResponse | None:
-        """Admit ``slots`` against each named limiter, atomically per limiter."""
+        """Admit ``slots`` against each named limiter without cross-budget partial charge.
+
+        Semantics: minute and day budgets are separate counters; admission either
+        succeeds on every named limiter or leaves all of them unchanged.
+        """
+        if slots < 1:
+            return None
         ip = client_ip(request)
         try:
-            for n in names:
-                key = "global" if n == "llm_global" else ip
-                limits[n].reserve(key, slots)
+            with admit_lock:
+                for n in names:
+                    key = "global" if n == "llm_global" else ip
+                    if limits[n].remaining(key) < slots:
+                        limits[n].reserve(key, slots)  # raises RateLimitedError
+                for n in names:
+                    key = "global" if n == "llm_global" else ip
+                    limits[n].reserve(key, slots)
         except RateLimitedError as e:
             return JSONResponse(
                 {"error": "rate_limited", "detail": str(e)},
@@ -432,12 +453,42 @@ def create_app(
                 save_refusal(out)
         return out
 
+    def _arena_admit_slots(raw: object) -> int:
+        """Best-effort slot count from a decoded body before full validation.
+
+        Malformed / unknown bodies admit 1 (bounds rejected stats writes). Suite
+        and supported probes admit the full pair count atomically (no N then N-1).
+        """
+        if not isinstance(raw, dict):
+            return 1
+        mode = raw.get("mode")
+        if mode == "containment_suite":
+            return containment.slots_for("containment_suite")
+        if mode == "containment_then_healthy":
+            probe = raw.get("probe", "timeout")
+            if probe not in ("timeout", "memory", "write", "egress"):
+                return 1
+            return max(1, containment.slots_for("containment_then_healthy", probe))
+        return 1
+
     @app.post("/api/arena")
     async def post_arena(request: Request):
-        # Validate before charging multi-slot containment so a 422 never burns
-        # half a suite budget. Single-shot Arena still admits 1 slot after parse.
+        # Decode cheaply, admit the full slot count, then validate. Malformed
+        # requests still pay 1 slot before stats.bump(rejected) — no unlimited
+        # disk writes. Suite pays 4 once (no partial charge then top-up).
         try:
             raw = await read_json(request)
+        except Exception as e:
+            if r := limited(request, "arena_min", "arena_day", slots=1):
+                return r
+            stats.bump("attempts", "rejected")
+            detail = str(e).splitlines()[0][:300] if str(e) else "invalid request"
+            return _err(422, "bad_request", detail)
+
+        slots = _arena_admit_slots(raw)
+        if r := limited(request, "arena_min", "arena_day", slots=slots):
+            return r
+        try:
             if not isinstance(raw, dict):
                 raise ValueError("not an object")
             mode = raw.get("mode")
@@ -455,13 +506,6 @@ def create_app(
             return _err(422, "bad_request", detail)
 
         if isinstance(req, ArenaContainment):
-            slots = containment.slots_for(
-                req.mode, None if req.mode == "containment_suite" else req.probe
-            )
-            # Unsupported probes charge nothing (no sandbox). Supported ones
-            # reserve the full pair/suite atomically against the production budget.
-            if slots and (r := limited(request, "arena_min", "arena_day", slots=slots)):
-                return r
             if req.mode == "containment_suite":
                 out = await run_in_threadpool(
                     containment.run_containment_suite, pipeline, ARENA_CAPS
@@ -474,17 +518,15 @@ def create_app(
                     req.probe,
                 )
             for step in out.get("steps") or []:
+                if step.get("status") == "unexecuted" or "verdict" not in step:
+                    continue
                 stats.bump(
                     "attempts",
                     "blocked_by_policy" if step.get("verdict") != "allow" else "ran_in_sandbox",
                 )
             out["stats"] = stats.snapshot()
-            # Incomplete/busy still returns 200 with partial evidence; clients
-            # read result.state / incomplete rather than inventing a green PASS.
             return out
 
-        if r := limited(request, "arena_min", "arena_day"):
-            return r
         if isinstance(req, ArenaInject) and (
             r := limited(request, "task_min", "task_day", "llm_global")
         ):

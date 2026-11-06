@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1331** in 23 files.
+Total collected tests: **1333** in 23 files.
 
 | File | Tests |
 |------|------:|
@@ -16,21 +16,21 @@ Total collected tests: **1331** in 23 files.
 | `tests/test_e2e.py` | 2 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
-| `tests/test_outcome_check.py` | 7 |
+| `tests/test_outcome_check.py` | 6 |
 | `tests/test_policy.py` | 12 |
 | `tests/test_policy_corpus.py` | 50 |
 | `tests/test_policy_corpus_expanded.py` | 145 |
 | `tests/test_policy_corpus_independent.py` | 478 |
 | `tests/test_policy_corpus_r4.py` | 265 |
 | `tests/test_policy_review5.py` | 64 |
-| `tests/test_policy_zip_urllib.py` | 2 |
+| `tests/test_policy_zip_urllib.py` | 3 |
 | `tests/test_receipt.py` | 7 |
 | `tests/test_receipt_strict.py` | 35 |
 | `tests/test_sandbox.py` | 25 |
 | `tests/test_sandbox_unit.py` | 37 |
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
-| `tests/test_web_api.py` | 81 |
+| `tests/test_web_api.py` | 83 |
 | `tests/test_web_copy.py` | 6 |
 | `tests/test_web_js_crosscheck.py` | 51 |
 
@@ -97,12 +97,11 @@ Total collected tests: **1331** in 23 files.
 | Test | Description |
 |------|-------------|
 | `test_recount_levels_on_sample_corpus` |  |
-| `test_outcome_check_verified_when_report_matches` |  |
-| `test_outcome_check_failed_on_unequivocal_mismatch` |  |
-| `test_outcome_check_inconclusive_without_parsable_counts` |  |
-| `test_outcome_check_conflict_is_inconclusive_not_last_wins` | Negative: contradictory claims must not resolve to VERIFIED via last-wins. |
-| `test_outcome_check_decimals_commas_exponents_huge_are_inconclusive` |  |
-| `test_outcome_check_duplicate_same_value_is_verified` |  |
+| `test_outcome_check_verified_only_with_canonical_fence` |  |
+| `test_prose_example_counts_are_not_verified` | Observation (a): scanning arbitrary prose falsely VERIFIED before the fence contract. |
+| `test_outcome_check_failed_on_unequivocal_fence_mismatch` |  |
+| `test_outcome_check_inconclusive_without_fence` |  |
+| `test_prose_outside_fence_ignored_when_fence_ok` |  |
 
 ## `tests/test_policy.py`
 
@@ -1154,6 +1153,7 @@ Total collected tests: **1331** in 23 files.
 |------|-------------|
 | `test_fancyurlopener_and_retrieve_denied` |  |
 | `test_zip_extract_destinations` |  |
+| `test_zip_extractall_bound_method_and_getattr_denied` | Observation (b): destination checks alone miss bound refs / getattr. |
 
 ## `tests/test_receipt.py`
 
@@ -1402,7 +1402,9 @@ Total collected tests: **1331** in 23 files.
 | `test_containment_write_egress_are_unsupported_not_staged[write]` | Negative: write/egress are not filmable via policy gaps; no sandbox starts. |
 | `test_containment_write_egress_are_unsupported_not_staged[egress]` | Negative: write/egress are not filmable via policy gaps; no sandbox starts. |
 | `test_containment_suite_fits_default_minute_budget` | Suite = timeout+memory (4 slots) under production default arena_per_min=6. |
-| `test_containment_busy_preserves_partial_suite` | BusyError after the first pair keeps completed steps; remainder listed. |
+| `test_containment_busy_on_action2_keeps_probe_receipt` | Busy on healthy (action 2) after timeout probe: keep probe, mark healthy unexecuted. |
+| `test_containment_busy_on_action4_keeps_first_pair_and_memory_probe` | Busy on suite action 4 (memory healthy): keep timeout pair + memory probe. |
+| `test_malformed_arena_requests_are_rate_limited_before_stats_storm` | Observation (d): invalid bodies must hit the production arena budget before rejected writes. |
 | `test_containment_mode_does_not_weaken_the_gate` | Negative: Arena still fail-closes on network/exfil; containment is not a bypass. |
 | `test_live_task_outcome_check_verified_on_this_corpus` | Independent recount of ERROR/WARN matches report.md for the sample log. |
 | `test_live_task_outcome_check_failed_on_wrong_report` |  |

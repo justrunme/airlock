@@ -204,35 +204,83 @@ def unsupported_result(probe: UnsupportedProbe) -> dict[str, Any]:
     }
 
 
-def _run_one(
+def _probe_step(
     pipeline: Pipeline,
     caps: dict[str, Any],
     probe: SupportedProbe,
     task_id: str,
     index: int,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    probe_step = pipeline.run_action(
+) -> dict[str, Any]:
+    step = pipeline.run_action(
         _action(task_id, index, PROBE_CODES[probe], caps),
         None,
         None,
         context={"mode": "live", "planner": "arena", "probe": probe},
     )
-    probe_step["label"] = f"{index}. {PROBE_LABELS[probe]}"
-    probe_step["intent"] = "containment_probe"
-    probe_step["probe"] = probe
-    healthy = pipeline.run_action(
-        _action(task_id, index + 1, HEALTHY_CODE, caps),
+    step["label"] = f"{index}. {PROBE_LABELS[probe]}"
+    step["intent"] = "containment_probe"
+    step["probe"] = probe
+    return step
+
+
+def _healthy_step(
+    pipeline: Pipeline,
+    caps: dict[str, Any],
+    probe: SupportedProbe,
+    task_id: str,
+    index: int,
+) -> dict[str, Any]:
+    step = pipeline.run_action(
+        _action(task_id, index, HEALTHY_CODE, caps),
         None,
         None,
         context=dict(HEALTHY_CONTEXT, after_probe=probe),
     )
-    healthy["label"] = f"{index + 1}. Healthy follow-up after {probe}: print(1+1)"
-    healthy["intent"] = "healthy"
-    healthy["probe"] = "healthy_followup"
-    result = evaluate_pair(probe, probe_step, healthy)
-    probe_step["containment_result"] = result
-    healthy["containment_result"] = result
-    return probe_step, healthy, result
+    step["label"] = f"{index}. Healthy follow-up after {probe}: print(1+1)"
+    step["intent"] = "healthy"
+    step["probe"] = "healthy_followup"
+    return step
+
+
+def _unexecuted_healthy(probe: SupportedProbe, index: int, reason: str) -> dict[str, Any]:
+    return {
+        "label": f"{index}. Healthy follow-up after {probe}: unexecuted",
+        "intent": "healthy",
+        "probe": "healthy_followup",
+        "status": "unexecuted",
+        "verdict": None,
+        "error": reason,
+        "after_probe": probe,
+    }
+
+
+def _busy_payload(
+    *,
+    task_id: str,
+    kind: str,
+    probe: str,
+    steps: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+    remaining: list[str],
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "task_id": task_id,
+        "kind": kind,
+        "mode": "live",
+        "planner": "arena",
+        "probe": probe,
+        "steps": steps,
+        "results": results,
+        "result": {
+            "state": "INCONCLUSIVE",
+            "reason": reason,
+            "completed": results,
+        },
+        "incomplete": True,
+        "remaining": remaining,
+        "error": "busy",
+    }
 
 
 def run_containment_then_healthy(
@@ -240,37 +288,55 @@ def run_containment_then_healthy(
     caps: dict[str, Any],
     probe: AnyProbe = "timeout",
 ) -> dict[str, Any]:
-    """Run one supported runtime probe + healthy follow-up, or return UNSUPPORTED."""
+    """Run one supported runtime probe + healthy follow-up, or return UNSUPPORTED.
+
+    Each sandbox action is recorded before the next slot is requested. Busy on
+    the healthy follow-up keeps the completed probe receipt/cleanup and marks
+    healthy as unexecuted (never claims nothing started).
+    """
     if probe in UNSUPPORTED:
         return unsupported_result(probe)  # type: ignore[arg-type]
     if probe not in PROBE_CODES:
         raise ValueError(f"unknown probe: {probe}")
     task_id = f"contain-{uuid.uuid4().hex[:12]}"
+    steps: list[dict[str, Any]] = []
     try:
-        probe_step, healthy, result = _run_one(pipeline, caps, probe, task_id, 1)  # type: ignore[arg-type]
+        probe_step = _probe_step(pipeline, caps, probe, task_id, 1)  # type: ignore[arg-type]
     except BusyError:
-        return {
-            "task_id": task_id,
-            "kind": "containment_then_healthy",
-            "mode": "live",
-            "planner": "arena",
-            "probe": probe,
-            "steps": [],
-            "result": {
-                "state": "INCONCLUSIVE",
-                "reason": "busy: no sandbox slot available before the probe started",
-            },
-            "incomplete": True,
-            "remaining": [probe, "healthy_followup"],
-            "error": "busy",
-        }
+        return _busy_payload(
+            task_id=task_id,
+            kind="containment_then_healthy",
+            probe=probe,
+            steps=[],
+            results=[],
+            remaining=[probe, "healthy_followup"],
+            reason="busy: no sandbox slot available before the probe started",
+        )
+    steps.append(probe_step)
+    try:
+        healthy = _healthy_step(pipeline, caps, probe, task_id, 2)  # type: ignore[arg-type]
+    except BusyError:
+        steps.append(_unexecuted_healthy(probe, 2, "busy"))  # type: ignore[arg-type]
+        return _busy_payload(
+            task_id=task_id,
+            kind="containment_then_healthy",
+            probe=probe,
+            steps=steps,
+            results=[],
+            remaining=["healthy_followup"],
+            reason="busy: probe completed; healthy follow-up not started",
+        )
+    steps.append(healthy)
+    result = evaluate_pair(probe, probe_step, healthy)  # type: ignore[arg-type]
+    probe_step["containment_result"] = result
+    healthy["containment_result"] = result
     return {
         "task_id": task_id,
         "kind": "containment_then_healthy",
         "mode": "live",
         "planner": "arena",
         "probe": probe,
-        "steps": [probe_step, healthy],
+        "steps": steps,
         "result": result,
         "incomplete": False,
     }
@@ -279,40 +345,51 @@ def run_containment_then_healthy(
 def run_containment_suite(pipeline: Pipeline, caps: dict[str, Any]) -> dict[str, Any]:
     """Run timeout then memory, each with a healthy follow-up (4 arena slots).
 
-    Fits the default AIRLOCK_ARENA_PER_MIN=6 budget. Preserves completed steps if
-    BusyError fires between pairs; remaining probes are listed, not fabricated.
+    Fits the default AIRLOCK_ARENA_PER_MIN=6 budget. Records every completed
+    action before requesting the next slot so Busy mid-pair (action 2 or 4)
+    preserves the probe receipt/cleanup.
     """
     task_id = f"contain-suite-{uuid.uuid4().hex[:12]}"
     steps: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
     n = 1
     remaining = list(SUITE_PROBES)
-    try:
-        while remaining:
-            name = remaining[0]
-            probe_step, healthy, result = _run_one(pipeline, caps, name, task_id, n)
-            steps.extend([probe_step, healthy])
-            results.append(result)
-            remaining.pop(0)
-            n += 2
-    except BusyError:
-        return {
-            "task_id": task_id,
-            "kind": "containment_suite",
-            "mode": "live",
-            "planner": "arena",
-            "probe": "suite",
-            "steps": steps,
-            "results": results,
-            "result": {
-                "state": "INCONCLUSIVE",
-                "reason": "busy: sandbox contention after completed steps; remaining not run",
-                "completed": results,
-            },
-            "incomplete": True,
-            "remaining": list(remaining),
-            "error": "busy",
-        }
+    while remaining:
+        name = remaining[0]
+        try:
+            probe_step = _probe_step(pipeline, caps, name, task_id, n)
+        except BusyError:
+            return _busy_payload(
+                task_id=task_id,
+                kind="containment_suite",
+                probe="suite",
+                steps=steps,
+                results=results,
+                remaining=[name, "healthy_followup", *remaining[1:]],
+                reason="busy: sandbox contention before next probe; completed actions kept",
+            )
+        steps.append(probe_step)
+        try:
+            healthy = _healthy_step(pipeline, caps, name, task_id, n + 1)
+        except BusyError:
+            steps.append(_unexecuted_healthy(name, n + 1, "busy"))
+            rem = ["healthy_followup", *remaining[1:]]
+            return _busy_payload(
+                task_id=task_id,
+                kind="containment_suite",
+                probe="suite",
+                steps=steps,
+                results=results,
+                remaining=rem,
+                reason=f"busy: {name} probe completed; healthy follow-up not started",
+            )
+        steps.append(healthy)
+        result = evaluate_pair(name, probe_step, healthy)
+        probe_step["containment_result"] = result
+        healthy["containment_result"] = result
+        results.append(result)
+        remaining.pop(0)
+        n += 2
     states = {r["state"] for r in results}
     if states == {"PASS"}:
         overall = "PASS"

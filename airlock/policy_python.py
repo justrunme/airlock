@@ -250,13 +250,22 @@ GLOB_ITERATORS = {"glob", "rglob"}
 # A path method may only be called in place; a bound reference (r = p.read_text)
 # would be called later where check_call cannot see its receiver.
 PATH_METHODS = PATHLIB_READ | PATHLIB_WRITE | {"open"}
+# Zip extract methods need the same bound-method / getattr protections: destination
+# checks only run on direct calls (z.extractall('/work/out')), not on f=z.extractall.
+ZIP_EXTRACT_METHODS = {"extract", "extractall"}
 ALLOC_CALLS = {"bytearray", "bytes", "range", "zeros"}
 MAX_ALLOC = 64 * 1024 * 1024
 MAX_NUMBER = 1 << 64
 
 
-def path_violation(path: str, write: bool) -> tuple[str, str] | None:
-    """Return (rule, message) when a literal path is not allowed."""
+def path_violation(
+    path: str, write: bool, *, allow_out_dir: bool = False
+) -> tuple[str, str] | None:
+    """Return (rule, message) when a literal path is not allowed.
+
+    ``allow_out_dir`` permits the exact directory ``/work/out`` (zip extract
+    destination). Ordinary file writes still require a path under ``/work/out/``.
+    """
     if ".." in PurePosixPath(path).parts:
         return "R-PY-OPEN-TRAVERSAL", "open() path traversal"
     full = PurePosixPath("/work") / path  # relative paths resolve against cwd /work
@@ -264,7 +273,10 @@ def path_violation(path: str, write: bool) -> tuple[str, str] | None:
         if full == PurePosixPath(root) or full.is_relative_to(root):
             return "R-PY-OPEN-PATH", f"open() dangerous path {path}"
     if write:
-        if not full.is_relative_to("/work/out") or full == PurePosixPath("/work/out"):
+        out_root = PurePosixPath("/work/out")
+        if allow_out_dir and full == out_root:
+            return None
+        if not full.is_relative_to(out_root) or full == out_root:
             return "R-PY-OPEN-WRITE", f"write outside /work/out/: {path}"
     elif not full.is_relative_to("/work/input") and not full.is_relative_to("/work/out"):
         return "R-PY-OPEN-READ", f"read outside /work/input/: {path}"
@@ -577,10 +589,11 @@ class PythonChecker:
                 self.check_qual(q)
         if node.attr == "compile" and self.qual(node.value) == "re":
             return
-        if node.attr in PATH_METHODS:
+        if node.attr in PATH_METHODS | ZIP_EXTRACT_METHODS:
             parent = self.parents.get(id(node))
             if not (isinstance(parent, ast.Call) and parent.func is node):
-                self.flag(f"reference to path method .{node.attr}", "R-PY-PATH-METHOD-REF")
+                kind = "zip extract" if node.attr in ZIP_EXTRACT_METHODS else "path"
+                self.flag(f"reference to {kind} method .{node.attr}", "R-PY-PATH-METHOD-REF")
         if self.denied_attr(node.attr):
             if node.attr == "modules":
                 rule = "R-PY-SYS-MODULES"
@@ -688,8 +701,8 @@ class PythonChecker:
                 self.flag(f"{fname} non-literal", "R-PY-GETATTR")
             elif self.denied_attr(name_arg.value) or name_arg.value in DENIED_CALLS:
                 self.flag(f"{fname} dangerous attr {name_arg.value}", "R-PY-GETATTR-DANGER")
-            elif fname == "getattr" and name_arg.value in PATH_METHODS:
-                self.flag(f"getattr of path method {name_arg.value}", "R-PY-PATH-METHOD-REF")
+            elif fname == "getattr" and name_arg.value in PATH_METHODS | ZIP_EXTRACT_METHODS:
+                self.flag(f"getattr of method {name_arg.value}", "R-PY-PATH-METHOD-REF")
             elif fname == "setattr" or fname == "delattr":
                 self.flag(f"{fname} mutates objects", "R-PY-GETATTR")
         self.check_format(node)
@@ -714,9 +727,9 @@ class PythonChecker:
             elif path_violation(path, False):
                 rule, message = path_violation(path, False)
                 self.flag(message, rule)
-        elif isinstance(func, ast.Attribute) and func.attr in {"extract", "extractall"}:
-            # Zip extract destinations write files; only /work/out/... is allowed.
-            # Default cwd (/work) and writable tmpfs mounts like /tmp stay denied.
+        elif isinstance(func, ast.Attribute) and func.attr in ZIP_EXTRACT_METHODS:
+            # Direct call only (bound refs / getattr are refused above). Destinations
+            # may be /work/out itself or a confined descendant — not /tmp etc.
             if not self.zip_handle(func.value):
                 self.flag(f"zipfile.{func.attr}() on unknown handle", "R-PY-ZIP-EXTRACT")
             else:
@@ -731,13 +744,16 @@ class PythonChecker:
                         "R-PY-ZIP-EXTRACT",
                     )
                 else:
-                    self.check_access(
-                        dest,
-                        ast.Constant("w"),
-                        "w",
-                        write_rule="R-PY-ZIP-EXTRACT",
-                        read_rule="R-PY-ZIP-EXTRACT",
-                    )
+                    path = self.resolve_path(dest)
+                    if path is None:
+                        self.flag(
+                            f"zipfile.{func.attr}() on a non-literal path",
+                            "R-PY-ZIP-EXTRACT",
+                        )
+                    else:
+                        violation = path_violation(path, True, allow_out_dir=True)
+                        if violation:
+                            self.flag(violation[1], "R-PY-ZIP-EXTRACT")
         elif isinstance(func, ast.Attribute) and func.attr in PATHLIB_READ | PATHLIB_WRITE | {
             "open"
         }:

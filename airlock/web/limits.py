@@ -34,21 +34,32 @@ class RateLimiter:
     def hit(self, key: str) -> None:
         self.reserve(key, 1)
 
+    def _queue(self, key: str, now: float) -> deque[float]:
+        if len(self._hits) > self.MAX_KEYS:
+            self._gc(now)
+        q = self._hits.setdefault(key, deque())
+        while q and q[0] <= now - self.window_s:
+            q.popleft()
+        return q
+
+    def remaining(self, key: str) -> int:
+        """How many more hits ``key`` may take in the current window (unlocked peek)."""
+        now = self.clock()
+        with self._lock:
+            return max(0, self.limit - len(self._queue(key, now)))
+
     def reserve(self, key: str, n: int) -> None:
         """Atomically admit ``n`` slots for ``key``, or raise without consuming any.
 
         Used by multi-step Arena containment so a suite either fits the remaining
-        budget in full or is rejected with 429 (no partial charge).
+        budget in full or is rejected with 429 (no partial charge). Atomic only
+        within this limiter; cross-limiter admission is coordinated by the caller.
         """
         if n < 1:
             return
         now = self.clock()
         with self._lock:
-            if len(self._hits) > self.MAX_KEYS:
-                self._gc(now)
-            q = self._hits.setdefault(key, deque())
-            while q and q[0] <= now - self.window_s:
-                q.popleft()
+            q = self._queue(key, now)
             if len(q) + n > self.limit:
                 retry = 1
                 if q:
