@@ -2,7 +2,7 @@
 """Regenerate tests/fixtures/evidence_bundle deterministically (manual; not a test).
 
 Writes sample-evidence-bundle.zip and auditor-trusted.pem using FakeRunner.
-Does not run during pytest. Parent may re-run when the format changes:
+Does not run during pytest. Regenerate when the format changes:
 
   python scripts/gen_evidence_fixture.py
 """
