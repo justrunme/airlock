@@ -34,7 +34,7 @@ An LLM only proposes. A deterministic policy gate decides. Allowed code runs in 
 
 ![Receipt verified in the browser](docs/img/06-verify-valid.png)
 
-*Tab 4 (Verify a receipt). The browser checks JSON, schema, SHA-256 over RFC 8785 JCS, and the Ed25519 signature via WebCrypto. Chain linkage is what `airlock verify-chain` is for; the page does not check it.*
+*Tab 4 (Verify a receipt). The browser checks JSON, schema, SHA-256 over RFC 8785 JCS, and the Ed25519 signature via WebCrypto. Chain linkage is what `airlock verify-bundle (Evidence Bundle v1; see docs/EVIDENCE_BUNDLE.md) · airlock verify-chain` is for; the page does not check it.*
 
 ![Tampered receipt marked INVALID](docs/img/07-verify-invalid.png)
 

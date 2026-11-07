@@ -45,21 +45,23 @@ def test_live_and_replay_are_labelled():
     assert "was not tampered with" in text
 
 
-def test_judge_path_orders_useful_attack_probe_verify():
-    """Filmable story: useful live result → attack → runtime probe → receipt/tamper."""
-    assert 'data-step="1"' in HTML and "Useful result" in HTML
-    assert 'data-step="2"' in HTML and "Attack contained" in HTML
+def test_see_airlock_in_action_orders_useful_attack_probe_proof():
+    """First-screen story: useful work → stopped attack → runtime probe → proof."""
+    assert "See Airlock in action" in HTML
+    assert "Judge path — film in this order" not in HTML
+    assert 'data-step="1"' in HTML and "Useful work" in HTML
+    assert 'data-step="2"' in HTML and "Stopped attack" in HTML
     assert 'data-step="3"' in HTML and "Runtime probe" in HTML
-    assert 'data-step="4"' in HTML and "Receipt" in HTML
+    assert 'data-step="4"' in HTML and "Proof" in HTML
     assert "containment_then_healthy" in JS
     assert "containment_suite" in JS
     assert "Download report.md" in JS
     assert "Independent outcome check" in JS
     assert "airlock-counts" in HTML
+    assert "Independently checked" in HTML
     for probe in ("timeout", "memory"):
         assert f'data-probe="{probe}"' in HTML
     assert 'data-probe="write"' not in HTML and 'data-probe="egress"' not in HTML
-    # Owner scope: network / read-only are not claimed on the runtime demo path.
     assert "not demonstrated" in HTML
     assert "Network isolation and read-only" in HTML or "network / read-only" in HTML
     assert "No false green" in JS or "no false green" in JS.lower()
@@ -68,6 +70,19 @@ def test_judge_path_orders_useful_attack_probe_verify():
     i_arena = HTML.index('data-tab="arena"')
     i_ver = HTML.index('data-tab="verify"')
     assert i_real < i_inj < i_arena < i_ver
+
+
+def test_previous_verified_run_label_exact():
+    """Cached prior success uses the exact label and is never the current result."""
+    assert "Previous verified run" in JS
+    assert "previousVerifiedRun" in JS
+    assert "Cached prior success — not the current result" in JS
+
+
+def test_evidence_bundle_ux_copy():
+    assert "Evidence Bundle" in JS
+    assert "verify-bundle" in JS
+    assert "auditor-trusted" in JS or "out of band" in JS
 
 
 def test_no_employer_names_in_ui():

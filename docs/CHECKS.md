@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1346** in 24 files.
+Total collected tests: **1375** in 25 files.
 
 | File | Tests |
 |------|------:|
@@ -14,6 +14,7 @@ Total collected tests: **1346** in 24 files.
 | `tests/test_containment.py` | 7 |
 | `tests/test_containment_live.py` | 3 |
 | `tests/test_e2e.py` | 2 |
+| `tests/test_evidence_bundle.py` | 27 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
 | `tests/test_outcome_check.py` | 17 |
@@ -32,7 +33,7 @@ Total collected tests: **1346** in 24 files.
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
 | `tests/test_web_api.py` | 83 |
-| `tests/test_web_copy.py` | 6 |
+| `tests/test_web_copy.py` | 8 |
 | `tests/test_web_js_crosscheck.py` | 51 |
 
 ## `tests/test_agent.py`
@@ -72,6 +73,38 @@ Total collected tests: **1346** in 24 files.
 |------|-------------|
 | `TestEndToEnd::test_e40_sre_demo_task_succeeds` | E40: SRE demo task succeeds with a receipt. |
 | `TestEndToEnd::test_e41_dangerous_action_contained` | E41: Dangerous action is contained with receipt showing deny. |
+
+## `tests/test_evidence_bundle.py`
+
+| Test | Description |
+|------|-------------|
+| `test_replay_bundle_verifies_offline_with_external_pubkey` |  |
+| `test_signed_verdict_binds_input_report_and_receipt_chain` |  |
+| `test_committed_fixture_verifies_exact_exit_0` | Read-only check of the tracked fixture (tests must not rewrite it). |
+| `test_cli_corrupt_crc_member_exits_17_not_1` |  |
+| `test_cli_invalid_utf8_report_with_rebuilt_manifest_exits_12` | Commitments checked before UTF-8 decode; invalid UTF-8 → 12, never traceback/1. |
+| `test_extra_members_with_rewritten_unsigned_manifest_exit_17` | Reject unbound archive members even when the unsigned manifest is rewritten. |
+| `test_extra_txt_only_with_rewritten_manifest_exit_17` |  |
+| `test_cli_tampered_input_exits_11` |  |
+| `test_cli_attacker_key_exits_10` |  |
+| `test_duplicate_zip_member_names_exit_17` |  |
+| `test_symlink_mode_member_exit_17` |  |
+| `test_zipbomb_mismatched_declared_size_exit_17` | Header file_size that does not match inflated bytes is rejected. |
+| `test_collector_rejects_gated_step_without_receipt_id` |  |
+| `test_removed_receipt_and_resigned_verdict_is_incomplete` | Re-sign omitting an action but leave its receipt file → completeness fail (17). |
+| `test_missing_receipt_file_listed_in_verdict_exit_17` |  |
+| `test_correctly_signed_cross_task_receipt_rejected` |  |
+| `test_malformed_action_receipt_meta_no_keyerror` |  |
+| `test_failed_recount_exact_exit_1` |  |
+| `test_nested_counts_inconclusive_exact_exit_2` |  |
+| `test_unsupported_verifier_exact_exit_18` |  |
+| `test_export_rejects_non_fixture_log` |  |
+| `test_offline_cli_subprocess_with_network_disabled` | Subprocess offline CLI must not need network; socket factory blocked in-process too. |
+| `test_verdict_shaped_json_rejected_by_receipt_verifier` |  |
+| `test_old_action_receipt_wire_format_unchanged` |  |
+| `test_evidence_postprocess_error_keeps_task_result` |  |
+| `test_startup_prunes_leftover_evidence_zips` | After restart, owned zips on disk are bounded to the cache cap. |
+| `test_disk_prune_removes_old_zip_files` | Index cap and on-disk zip deletion stay aligned; active write is not unlinked. |
 
 ## `tests/test_jcs.py`
 
@@ -1442,7 +1475,9 @@ Total collected tests: **1346** in 24 files.
 | `test_no_bare_zero_false_allow_claim` | Every '0 false-ALLOW' must be scoped to a corpus and the independent corpus named. |
 | `test_corpus_table_renders_independent_metrics` | The corpus table must show the independent corpus from metrics.json. |
 | `test_live_and_replay_are_labelled` | Judges must see live vs replay without mistaking scripted proposals for a model call. |
-| `test_judge_path_orders_useful_attack_probe_verify` | Filmable story: useful live result → attack → runtime probe → receipt/tamper. |
+| `test_see_airlock_in_action_orders_useful_attack_probe_proof` | First-screen story: useful work → stopped attack → runtime probe → proof. |
+| `test_previous_verified_run_label_exact` | Cached prior success uses the exact label and is never the current result. |
+| `test_evidence_bundle_ux_copy` |  |
 | `test_no_employer_names_in_ui` |  |
 
 ## `tests/test_web_js_crosscheck.py`

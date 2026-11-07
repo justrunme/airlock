@@ -241,5 +241,12 @@ nav button[aria-selected=true] { color:var(--acc); }
 .vm-k { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); font-weight:700; }
 .ev-actions { margin-top:14px; } .ev-actions .ev-summary { margin:0; }
 .live-line { font-size:14px; color:#c9ced6; border-left:3px solid var(--acc); padding:4px 0 4px 12px; margin:10px 0 0; max-width:80ch; }
+.claim-strip { list-style:none; padding:0; margin:14px 0 8px; display:grid; gap:8px; max-width:72ch; }
+.claim-strip li { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:14px; line-height:1.4; }
+.hero-more, .guided-more { margin:8px 0 4px; max-width:72ch; color:var(--mut); font-size:13px; }
+.hero-more summary, .guided-more summary { cursor:pointer; color:var(--fg); }
+.previous-verified-run { border-color:#3a4a2a; }
+.evidence-card { border-color:#2a4a6a; }
+.evidence-card a.secondary { display:inline-block; background:var(--line); color:var(--fg); text-decoration:none; border-radius:6px; padding:8px 14px; font-weight:600; }
 @media (max-width: 900px) { .denials { grid-template-columns:1fr; } }
 @media (max-width: 600px) { .ev-check { grid-template-columns:1fr; } }

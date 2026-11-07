@@ -1,5 +1,6 @@
 """FastAPI application: tasks, arena, receipts, policy and the static UI."""
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -13,13 +14,23 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
+from airlock.evidence.bundle import (
+    EvidenceBundleError,
+    build_evidence_bundle,
+    collect_action_receipts_from_result,
+)
+from airlock.evidence.verdict import (
+    VerdictFormatError,
+    build_task_verdict,
+    sign_task_verdict,
+)
 from airlock.policy import PolicyEngine
-from airlock.receipt import ReceiptFormatError
+from airlock.receipt import ReceiptFormatError, hash_data
 from airlock.schemas import ActionRequest
 from airlock.web import containment, replay, tasks
 from airlock.web.chain import ReceiptChain, load_or_create_signer, public_key_hex
@@ -279,6 +290,201 @@ def create_app(
         return {"task_prompt": tasks.TASK_PROMPT, "log": real, "injected_line": "\n".join(extra)}
 
     refusal_path = s.data_dir / "last_injected_run.json"
+    evidence_dir = s.data_dir / "evidence_bundles"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    evidence_index: dict[str, dict[str, Any]] = {}
+    evidence_lock = threading.Lock()
+    max_evidence_cache = 32
+    # Owned evidence zips only: <kind>-<12 hex>.zip under evidence_dir (no traversal).
+    evidence_zip_name = re.compile(r"^[a-z]+-[0-9a-f]{12}\.zip$")
+
+    def _safe_evidence_zip(path: Path) -> bool:
+        """True only for a regular, non-symlink file owned under evidence_dir."""
+        try:
+            if path.is_symlink() or not path.is_file():
+                return False
+            if not evidence_zip_name.fullmatch(path.name):
+                return False
+            resolved = path.resolve()
+            root = evidence_dir.resolve()
+            return resolved.parent == root
+        except OSError:
+            return False
+
+    def _prune_evidence_disk_locked() -> None:
+        """Keep at most max_evidence_cache owned zips on disk; drop oldest by mtime."""
+        owned: list[Path] = []
+        with contextlib.suppress(OSError):
+            for p in evidence_dir.iterdir():
+                if _safe_evidence_zip(p):
+                    owned.append(p)
+        owned.sort(key=lambda p: p.stat().st_mtime_ns, reverse=True)
+        keep = owned[:max_evidence_cache]
+        for p in owned[max_evidence_cache:]:
+            with contextlib.suppress(OSError):
+                if _safe_evidence_zip(p):
+                    p.unlink()
+        # Index tracks kept bundles (restart-safe); drop stale keys.
+        keep_ids = {p.stem for p in keep}
+        for tid in list(evidence_index):
+            if tid not in keep_ids:
+                evidence_index.pop(tid, None)
+        for p in keep:
+            evidence_index.setdefault(
+                p.stem,
+                {
+                    "task_id": p.stem,
+                    "recorded_at": time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime(p.stat().st_mtime)
+                    ),
+                    "size": p.stat().st_size,
+                },
+            )
+
+    with evidence_lock:
+        _prune_evidence_disk_locked()
+
+    def attach_task_verdict(out: dict, log_bytes: bytes) -> None:
+        """Sign a Task Verdict binding input, report bytes, and ordered receipts.
+
+        Never silently drops gated actions. Missing stored receipts refuse the
+        verdict (task result itself is unchanged). Raises on hard failures so
+        finalize can mark evidence unavailable without a 500.
+        """
+        report = out.get("report") or {}
+        report_text = report.get("text")
+        actions = collect_action_receipts_from_result(out)
+        enriched = []
+        for a in actions:
+            text = chain.get_text(a["receipt_hash"])
+            if text is None:
+                raise EvidenceBundleError(
+                    f"incomplete receipt chain: stored receipt missing for {a['receipt_hash']}"
+                )
+            enriched.append(
+                {
+                    "action_id": a["action_id"],
+                    "receipt_hash": a["receipt_hash"],
+                    "receipt_sha256": hash_data(text.encode("utf-8")),
+                }
+            )
+        if len(enriched) != len(actions):
+            raise EvidenceBundleError("incomplete receipt chain: enrich mismatch")
+        steps_ok = True
+        if out.get("mode") == "replay_compromised":
+            steps_ok = bool(out.get("steps"))
+        elif "turns" in out:
+            steps_ok = not any(t.get("error") for t in out.get("turns") or [])
+        unsigned = build_task_verdict(
+            task_id=out["task_id"],
+            task_kind=out.get("kind") or "real",
+            mode=out.get("mode") or "live",
+            input_log=log_bytes,
+            report_text=report_text,
+            report_sha256_claimed=report.get("sha256"),
+            action_receipts=enriched,
+            outcome=out.get("outcome"),
+            steps_ok=steps_ok,
+        )
+        out["task_verdict"] = sign_task_verdict(signer, unsigned)
+
+    def store_evidence_bundle(out: dict, log_bytes: bytes) -> Path:
+        """Cache an authorized Evidence Bundle zip; prune disk to match index cap."""
+        blob = build_evidence_bundle(
+            signer=signer,
+            chain_get_text=chain.get_text,
+            task_result=out,
+            input_log=log_bytes,
+        )
+        path = evidence_dir / f"{out['task_id']}.zip"
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(blob)
+        os.replace(tmp, path)
+        meta = {
+            "task_id": out["task_id"],
+            "kind": out.get("kind"),
+            "mode": out.get("mode"),
+            "recount_status": (out.get("task_verdict") or {}).get("recount_status")
+            or (out.get("outcome_check") or {}).get("state"),
+            "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "size": len(blob),
+        }
+        with evidence_lock:
+            evidence_index[out["task_id"]] = meta
+            # Bound disk to the same cap (covers restart leftovers + this write).
+            _prune_evidence_disk_locked()
+            # Ensure the just-written bundle remains indexed even if mtime ties.
+            evidence_index[out["task_id"]] = meta
+        return path
+
+    def finalize_task_result(out: dict, log_bytes: bytes) -> dict:
+        """Attach verdict + bundle after a successful task; never fail the HTTP result.
+
+        On post-processing errors the task body stays truthful; evidence is
+        explicitly unavailable (not a false SIGNED/VERIFIED claim).
+        """
+        verify_hint = (
+            "airlock verify-bundle <bundle.zip> --pubkey <auditor-trusted.pem> "
+            "(bundled signing.pub is convenience only, not the trust anchor)"
+        )
+        trust_note = (
+            "Signed origin (this server's key) is not the same as an independently "
+            "checked corpus claim. A valid ActionReceipt does not sign the Task Verdict."
+        )
+        try:
+            attach_task_verdict(out, log_bytes)
+            store_evidence_bundle(out, log_bytes)
+        except (
+            VerdictFormatError,
+            EvidenceBundleError,
+            ReceiptFormatError,
+            OSError,
+            KeyError,
+        ) as e:
+            # Server log keeps the real exception; client gets a generic reason (no paths).
+            log.warning(
+                "evidence post-process unavailable for %s: %s: %s",
+                out.get("task_id"),
+                type(e).__name__,
+                e,
+            )
+            out.setdefault("task_verdict", None)
+            out["evidence_bundle"] = {
+                "available": False,
+                "download_path": None,
+                "status": "unavailable",
+                "error": type(e).__name__,
+                "detail": "evidence post-processing failed",
+                "verify_hint": verify_hint,
+                "recount_status": None,
+                "trust_note": trust_note,
+            }
+            return out
+        except Exception as e:
+            log.exception("unexpected evidence post-process error for %s", out.get("task_id"))
+            out.setdefault("task_verdict", None)
+            out["evidence_bundle"] = {
+                "available": False,
+                "download_path": None,
+                "status": "unavailable",
+                "error": type(e).__name__,
+                "detail": "evidence post-processing failed",
+                "verify_hint": verify_hint,
+                "recount_status": None,
+                "trust_note": trust_note,
+            }
+            return out
+        tv = out.get("task_verdict") or {}
+        available = (evidence_dir / f"{out['task_id']}.zip").is_file()
+        out["evidence_bundle"] = {
+            "available": available,
+            "download_path": f"/api/evidence-bundle/{out['task_id']}" if available else None,
+            "status": "ready" if available else "unavailable",
+            "verify_hint": verify_hint,
+            "recount_status": tv.get("recount_status"),
+            "trust_note": trust_note,
+        }
+        return out
 
     def save_refusal(out: dict) -> None:
         """Keep what the real model said on the last live injected run, verbatim."""
@@ -333,6 +539,27 @@ def create_app(
         if text is None:
             return _err(404, "not_found", "no receipt with that hash")
         return PlainTextResponse(text, media_type="application/json")
+
+    @app.get("/api/evidence-bundle/{task_id}")
+    def get_evidence_bundle(task_id: str):
+        """Download a cached Evidence Bundle for an authorized fixture task.
+
+        Export is limited to fixture sample logs already run on this server.
+        No arbitrary paths, secrets, or user-uploaded logs.
+        """
+        if not re.fullmatch(r"[a-z]+-[0-9a-f]{12}", task_id):
+            return _err(400, "bad_request", "invalid task id")
+        path = evidence_dir / f"{task_id}.zip"
+        if not path.is_file():
+            return _err(404, "not_found", "no evidence bundle for that task")
+        data = path.read_bytes()
+        return Response(
+            data,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="airlock-evidence-{task_id}.zip"'
+            },
+        )
 
     @app.get("/api/arena/stats")
     def arena_stats():
@@ -427,25 +654,25 @@ def create_app(
             if r := limited(request, "task_min", "task_day"):
                 return r
             t0 = time.monotonic()
+            log_bytes = tasks.sample_log(True)
             try:
                 out = await run_in_threadpool(
-                    replay.run_replay, pipeline, tasks.sample_log(True), tasks.TASK_CAPS
+                    replay.run_replay, pipeline, log_bytes, tasks.TASK_CAPS
                 )
             except BusyError:
                 return _err(503, "busy", "too many sandboxes running, retry shortly")
             out["model_refusal"] = load_refusal()
             out["log_note"] = REPLAY_LOG_NOTE
             out["elapsed_s"] = round(time.monotonic() - t0, 2)
-            return out
+            return finalize_task_result(out, log_bytes)
         if r := limited(request, "task_min", "task_day", "llm_global"):
             return r
         t0 = time.monotonic()
         cb = progress_cb(req.progress_id, t0)
         if cb:
             cb("starting", 0, 0)
-        out = await run_in_threadpool(
-            agent_run, tasks.sample_log(req.kind == "injected"), req.kind, cb
-        )
+        log_bytes = tasks.sample_log(req.kind == "injected")
+        out = await run_in_threadpool(agent_run, log_bytes, req.kind, cb)
         if req.progress_id:
             with progress_lock:
                 if req.progress_id in progress:
@@ -454,6 +681,7 @@ def create_app(
             out["elapsed_s"] = round(time.monotonic() - t0, 2)
             if req.kind == "injected":
                 save_refusal(out)
+            return finalize_task_result(out, log_bytes)
         return out
 
     def _arena_admit_slots(raw: object) -> int:
