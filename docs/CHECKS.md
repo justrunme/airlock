@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1346** in 24 files.
+Total collected tests: **1361** in 25 files.
 
 | File | Tests |
 |------|------:|
@@ -14,6 +14,7 @@ Total collected tests: **1346** in 24 files.
 | `tests/test_containment.py` | 7 |
 | `tests/test_containment_live.py` | 3 |
 | `tests/test_e2e.py` | 2 |
+| `tests/test_evidence_bundle.py` | 13 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
 | `tests/test_outcome_check.py` | 17 |
@@ -32,7 +33,7 @@ Total collected tests: **1346** in 24 files.
 | `tests/test_sed_parser.py` | 29 |
 | `tests/test_verifier.py` | 9 |
 | `tests/test_web_api.py` | 83 |
-| `tests/test_web_copy.py` | 6 |
+| `tests/test_web_copy.py` | 8 |
 | `tests/test_web_js_crosscheck.py` | 51 |
 
 ## `tests/test_agent.py`
@@ -72,6 +73,24 @@ Total collected tests: **1346** in 24 files.
 |------|-------------|
 | `TestEndToEnd::test_e40_sre_demo_task_succeeds` | E40: SRE demo task succeeds with a receipt. |
 | `TestEndToEnd::test_e41_dangerous_action_contained` | E41: Dangerous action is contained with receipt showing deny. |
+
+## `tests/test_evidence_bundle.py`
+
+| Test | Description |
+|------|-------------|
+| `test_replay_bundle_verifies_offline_with_external_pubkey` |  |
+| `test_signed_verdict_binds_input_report_and_receipt_chain` |  |
+| `test_tamper_input_report_verdict_fail` |  |
+| `test_tamper_receipt_signature_and_reorder` |  |
+| `test_missing_duplicate_cross_task_and_attacker_key` |  |
+| `test_unsupported_verifier_version_rejected` |  |
+| `test_failed_recount_is_authentic_not_success` | Valid signed FAILED recount is integrity-OK and distinct from VERIFIED. |
+| `test_archive_traversal_and_symlink_rejected` |  |
+| `test_export_rejects_non_fixture_log` |  |
+| `test_offline_verifier_makes_no_network_calls` |  |
+| `test_old_action_receipt_wire_format_unchanged` | Evidence work must not alter ActionReceipt schema / verify path. |
+| `test_nested_counts_in_bundle_report_inconclusive` |  |
+| `test_materialize_fixture_bundle_for_parent_review` | Write a runnable sample bundle + trusted pubkey under tests/fixtures/. |
 
 ## `tests/test_jcs.py`
 
@@ -1442,7 +1461,9 @@ Total collected tests: **1346** in 24 files.
 | `test_no_bare_zero_false_allow_claim` | Every '0 false-ALLOW' must be scoped to a corpus and the independent corpus named. |
 | `test_corpus_table_renders_independent_metrics` | The corpus table must show the independent corpus from metrics.json. |
 | `test_live_and_replay_are_labelled` | Judges must see live vs replay without mistaking scripted proposals for a model call. |
-| `test_judge_path_orders_useful_attack_probe_verify` | Filmable story: useful live result → attack → runtime probe → receipt/tamper. |
+| `test_see_airlock_in_action_orders_useful_attack_probe_proof` | First-screen story: useful work → stopped attack → runtime probe → proof. |
+| `test_previous_verified_run_label_exact` | Cached prior success uses the exact label and is never the current result. |
+| `test_evidence_bundle_ux_copy` |  |
 | `test_no_employer_names_in_ui` |  |
 
 ## `tests/test_web_js_crosscheck.py`

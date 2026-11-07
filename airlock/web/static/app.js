@@ -57,6 +57,24 @@ function outcomeCheckCard(check) {
     el("p", { class: "hint" }, check.note || ""));
 }
 
+function evidenceBundleCard(info, taskId) {
+  if (!info) return null;
+  const card = el("div", { class: "card evidence-card" },
+    el("div", {}, el("strong", {}, "Evidence Bundle v1"),
+      el("span", { class: "hint" }, " — signed Task Verdict + fixture log + report + ordered receipts")),
+    kv([
+      ["recount in verdict", info.recount_status ?? "—"],
+      ["download", info.available ? "ready" : "not available for this run"],
+    ]),
+    el("p", { class: "hint" }, info.trust_note || ""),
+    el("p", { class: "hint" }, "Offline check (auditor-trusted key out of band): ",
+      el("code", {}, info.verify_hint || "airlock verify-bundle bundle.zip --pubkey trusted.pem")),
+    info.available && info.download_path
+      ? el("a", { class: "secondary", href: info.download_path, download: `airlock-evidence-${taskId || "task"}.zip` }, "Download Evidence Bundle")
+      : null);
+  return card;
+}
+
 function reportCard(report, { liveLabel = "live", outcomeCheck = null } = {}) {
   if (!report) return null;
   const body = report.text ?? report.preview ?? "";
@@ -224,6 +242,7 @@ function renderReplay(out, target) {
   if (out.log_note) target.append(el("p", { class: "hint" }, out.log_note));
   if (out.report) target.append(reportCard(out.report, { liveLabel: "replay", outcomeCheck: out.outcome_check }));
   else if (out.outcome_check) target.append(outcomeCheckCard(out.outcome_check));
+  if (out.evidence_bundle) target.append(evidenceBundleCard(out.evidence_bundle, out.task_id));
   for (const s of out.steps) {
     const card = el("div", { class: "card" },
       containment(s),
@@ -287,6 +306,7 @@ function renderTask(out, target) {
   target.append(headline(out.outcome));
   if (out.report) target.append(reportCard(out.report, { liveLabel: "live", outcomeCheck: out.outcome_check }));
   else if (out.outcome_check) target.append(outcomeCheckCard(out.outcome_check));
+  if (out.evidence_bundle) target.append(evidenceBundleCard(out.evidence_bundle, out.task_id));
   for (const t of out.turns) {
     const c = el("div", { class: "card" }, el("strong", {}, `turn ${t.turn}`));
     if (t.error) c.append(el("p", { class: "err" }, t.error));
@@ -297,6 +317,22 @@ function renderTask(out, target) {
     target.append(c);
   }
   if (out.final_answer) target.append(el("div", { class: "hint" }, "final answer:"), pre(out.final_answer));
+}
+
+/** Last successful supported live result per panel — never shown as the current run. */
+const previousVerifiedRun = { real: null, injected: null };
+
+function previousVerifiedRunCard(rec) {
+  if (!rec) return null;
+  return el("div", { class: "card previous-verified-run", "aria-label": "Previous verified run" },
+    el("strong", {}, "Previous verified run"),
+    kv([
+      ["task", rec.task_id],
+      ["time (UTC)", rec.recorded_at],
+      ["recount", rec.recount_status],
+      ["mode", rec.mode || "live"],
+    ]),
+    el("p", { class: "hint" }, "Cached prior success — not the current result. Rate admission still applies to new runs."));
 }
 
 function headlineText(o) {
@@ -316,12 +352,14 @@ function headline(o) {
 
 // ---------- progress of a live run (polls the real loop state)
 const PHASE = { starting: "queued", model: "waiting for the model", sandbox: "running an action through the gate and sandbox" };
-function startProgress(target) {
+function startProgress(target, { retain = [] } = {}) {
   const pid = [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
   const t0 = performance.now();
   const line = el("span", {}, "starting");
   const list = el("ol", { class: "turns" });
-  target.replaceChildren(el("div", { class: "card progress" }, el("div", {}, el("span", { class: "spin", "aria-hidden": "true" }), line), list));
+  const progressCard = el("div", { class: "card progress" }, el("div", {}, el("span", { class: "spin", "aria-hidden": "true" }), line), list);
+  // retained nodes (e.g. Previous verified run) stay visible and are never the current result
+  target.replaceChildren(...retain.filter(Boolean), progressCard);
   let last = null;
   const tick = async () => {
     const secs = Math.round((performance.now() - t0) / 1000);
@@ -343,17 +381,34 @@ function startProgress(target) {
 
 // ---------- tasks
 async function runTask(b) {
-  const target = $(`#out-${b.dataset.kind}`);
+  const kind = b.dataset.kind;
+  const target = $(`#out-${kind}`);
   b.disabled = true;
-  const prog = startProgress(target);
+  const prior = previousVerifiedRun[kind];
+  const prog = startProgress(target, { retain: [previousVerifiedRunCard(prior)] });
   try {
-    const out = await api("/api/task", { kind: b.dataset.kind, progress_id: prog.pid });
+    const out = await api("/api/task", { kind, progress_id: prog.pid });
     prog.stop();
+    const recount = out.outcome_check?.state || out.task_verdict?.recount_status;
+    if (recount === "VERIFIED" && out.task_id) {
+      previousVerifiedRun[kind] = {
+        task_id: out.task_id,
+        recorded_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+        recount_status: recount,
+        mode: out.mode || "live",
+      };
+    }
     renderTask(out, target);
-    if (b.dataset.kind === "injected") showRefusal((await api("/api/last_injected_run")).record);
+    if (kind === "injected") showRefusal((await api("/api/last_injected_run")).record);
     return out;
   }
-  catch (e) { prog.stop(); target.replaceChildren(el("p", { class: "err" }, e.message)); throw e; }
+  catch (e) {
+    prog.stop();
+    target.replaceChildren();
+    if (prior) target.append(previousVerifiedRunCard(prior));
+    target.append(el("p", { class: "err" }, e.message));
+    throw e;
+  }
   finally { b.disabled = false; refreshMeta(); }
 }
 for (const b of document.querySelectorAll("button.run")) b.addEventListener("click", () => runTask(b).catch(() => {}));
@@ -528,7 +583,7 @@ $("#demo-run").addEventListener("click", async () => {
       await new Promise((r) => setTimeout(r, 1200));
       await loadReceipt(blocked.receipt_id, true);
     }
-    say("Judge path done. Live stays labelled live; replay stays replay. A valid signature means the receipt was not tampered with; it does not prove the world-state claim.");
+    say("Demo done. Live stays labelled live; replay stays replay. A valid signature means the receipt was not tampered with; it does not prove the world-state claim.");
     markStory(5);
   } catch (e) { say(`Demo stopped: ${e.message}. The tab shows what happened.`); }
   finally { b.disabled = false; }

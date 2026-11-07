@@ -10,6 +10,21 @@ Exit codes of verify, verify-chain and chain-head:
   14 chain gap, fork or duplicate receipt
   15 public or private key missing or invalid
   16 I/O error: receipt, directory or head file missing or unreadable
+
+Exit codes of verify-bundle (Evidence Bundle v1, offline, no network):
+  0  bundle authentic; recount VERIFIED on this corpus
+  1  bundle authentic; recount FAILED (signed mismatch evidence — integrity OK)
+  2  bundle authentic; incomplete / inconclusive (not a success claim)
+  10 signature invalid (verdict or receipt)
+  11 hash / binding mismatch
+  12 schema error
+  15 trusted public key missing or invalid
+  16 I/O error
+  17 bundle structure / archive safety / completeness
+  18 unsupported verifier id/version/code_hash
+
+The --pubkey for verify-bundle is the auditor's out-of-band trust anchor.
+A signing.pub inside the zip is convenience only and is never used as trust.
 """
 
 import argparse
@@ -17,6 +32,7 @@ import json
 import sys
 from pathlib import Path
 
+from airlock.evidence.bundle import verify_evidence_bundle
 from airlock.receipt import (
     ReceiptFormatError,
     ReceiptSigner,
@@ -260,12 +276,41 @@ def sign_chain_head(chain_dir: Path, privkey_path: Path, output_path: Path) -> i
         return EXIT_IO_ERROR
 
 
+def verify_bundle(bundle_path: Path, pubkey_path: Path) -> int:
+    """Verify an Evidence Bundle offline. Never contacts a server or the network."""
+    public_key = _load_public_key(pubkey_path)
+    if public_key is None:
+        return EXIT_KEY_MISSING_INVALID
+    try:
+        blob = bundle_path.read_bytes()
+    except FileNotFoundError:
+        print(f"✗ Bundle not found: {bundle_path}")
+        return EXIT_IO_ERROR
+    except OSError as e:
+        print(f"✗ Cannot read bundle {bundle_path}: {e}")
+        return EXIT_IO_ERROR
+    result = verify_evidence_bundle(blob, public_key)
+    mark = "✓" if result.status in (0, 1, 2) else "✗"
+    print(f"{mark} {result.message}")
+    if result.task_id:
+        print(f"  Task: {result.task_id}")
+    if result.recount_status:
+        print(f"  Recount: {result.recount_status}")
+    if result.details:
+        print(f"  Details: {json.dumps(result.details, sort_keys=True)}")
+    print(
+        "  Trust: --pubkey is the auditor trust anchor; "
+        "bundled signing.pub (if present) is convenience only."
+    )
+    return result.status
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Airlock verification tools",
         epilog="""
-Exit codes:
+Exit codes (verify / verify-chain / chain-head):
   0  - Success
   10 - Signature invalid
   11 - Hash mismatch
@@ -274,6 +319,14 @@ Exit codes:
   14 - Chain gap/fork/duplicate
   15 - Missing/invalid key
   16 - I/O error
+
+Exit codes (verify-bundle):
+  0  - Authentic + recount VERIFIED
+  1  - Authentic + recount FAILED (integrity OK)
+  2  - Authentic + incomplete/inconclusive
+  10-12, 15-16 - as above
+  17 - Bundle structure / archive safety
+  18 - Unsupported verifier version
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -307,6 +360,18 @@ Exit codes:
         "--chain-head", type=Path, required=True, help="Chain head file"
     )
 
+    bundle_parser = subparsers.add_parser(
+        "verify-bundle",
+        help="Verify an Evidence Bundle v1 offline (no server/network)",
+    )
+    bundle_parser.add_argument("bundle", type=Path, help="Evidence Bundle zip")
+    bundle_parser.add_argument(
+        "--pubkey",
+        type=Path,
+        required=True,
+        help="Auditor-trusted public key (PEM). Never use the bundled key as trust.",
+    )
+
     args = parser.parse_args()
 
     if args.command == "verify":
@@ -327,6 +392,8 @@ Exit codes:
         else:
             head_sign_parser.print_help()
             sys.exit(EXIT_IO_ERROR)
+    elif args.command == "verify-bundle":
+        sys.exit(verify_bundle(args.bundle, args.pubkey))
     else:
         parser.print_help()
         sys.exit(EXIT_IO_ERROR)

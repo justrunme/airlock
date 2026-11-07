@@ -697,7 +697,8 @@ def test_hero_promise_steps_and_collapsed_facts(make):
     html = make()[0].get("/").text
     assert "For SREs who need an agent on untrusted logs" in html
     assert "Blast Radius Zero" in html and "Airlock BR0" in html
-    assert "told it to run" in html and "Judge path" in html and 'id="result"' in html
+    assert "tells it to run" in html and "See Airlock in action" in html and 'id="result"' in html
+    assert "Independently checked" in html and "Previous verified run" not in html  # label lives in JS
     assert 'id="attack-run"' in html and "Watch Airlock stop an attack" in html
     assert "Why I built Airlock" in html and "Without Airlock" in html and "With Airlock" in html
     # page order: hero result, why, pipeline, tabs, facts

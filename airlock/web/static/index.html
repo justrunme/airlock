@@ -33,15 +33,21 @@
 <header class="hero">
   <p class="promise">For SREs who need an agent on untrusted logs — not on the host.</p>
   <h1>Airlock <span class="acc">(Blast Radius Zero)</span></h1>
-  <p class="sub">I let an agent analyse logs without giving it my host or keys. It proposes; my policy gate decides; allowed code runs in a disposable sandbox; I get a signed decision and a report.</p>
+  <p class="sub">Useful work gets a report. A compromised agent is stopped at the gate. Counts are checked independently — not trusted from the model.</p>
   <div class="cta">
     <button id="attack-run" class="primary big"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>Watch Airlock stop an attack</button>
-    <p class="hint cta-note">About 3 seconds, no model call (<span class="mode-tag">replay</span>). A compromised agent's proposals are scripted; the policy gate, the sandbox and the signed receipts are real.</p>
+    <p class="hint cta-note">About 3 seconds, no model call (<span class="mode-tag">replay</span>). Gate, sandbox and signed receipts are real.</p>
   </div>
-  <p class="threat"><strong>Who it is for:</strong> an SRE who wants an agent to triage untrusted logs.
-  <strong>The threat:</strong> the agent read a log that told it to run
-  <code>curl | sh</code>. Airlock assumes the agent is already compromised and asks one question:
-  can an independent gate stop the action?</p>
+  <ul class="claim-strip" aria-label="What this demo shows">
+    <li><strong>Useful work</strong> — live triage writes <code>report.md</code> with an <code>airlock-counts</code> fence</li>
+    <li><strong>Stopped attack</strong> — <code>curl | sh</code> / exfil / cover-tracks denied before any container</li>
+    <li><strong>Independently checked</strong> — host recount vs that fence only (VERIFIED / FAILED / INCONCLUSIVE)</li>
+  </ul>
+  <details class="hero-more">
+    <summary>Who it is for and the threat model</summary>
+    <p class="threat">An SRE who wants an agent to triage untrusted logs. The agent may read a log that tells it to run
+    <code>curl | sh</code>. Airlock assumes the agent is already compromised and asks whether an independent gate can stop the action.</p>
+  </details>
   <p id="live-line" class="live-line" hidden></p>
 </header>
 
@@ -61,16 +67,20 @@
   </div>
 
   <div class="guided">
-    <h2 class="demo-h">Judge path — film in this order</h2>
+    <h2 class="demo-h">See Airlock in action</h2>
     <ol class="steps steps-4" id="story-steps">
-      <li data-step="1"><a href="#tab-real" data-goto="real"><strong>1. Useful result</strong><span><span class="mode-tag">live</span> SRE log triage → downloadable <code>report.md</code> with <code>```airlock-counts</code>, raw stdout, cleanup, independent recount (needs inference key)</span></a></li>
-      <li data-step="2"><a href="#tab-injected" data-goto="injected"><strong>2. Attack contained</strong><span><span class="mode-tag">replay</span> compromised agent: gate denies <code>curl | sh</code> / env exfil / cover-tracks before any container starts</span></a></li>
-      <li data-step="3"><a href="#tab-arena" data-goto="arena"><strong>3. Runtime probes</strong><span>timeout + memory only (claim after a real Docker PASS on this host). Network / read-only are <strong>not</strong> in this demo</span></a></li>
-      <li data-step="4"><a href="#tab-verify" data-goto="verify"><strong>4. Receipt / tamper</strong><span>verify signature + receipt hash in the browser, then change one character. Valid signature ≠ proof of the world-state claim</span></a></li>
+      <li data-step="1"><a href="#tab-real" data-goto="real"><strong>1. Useful work</strong><span><span class="mode-tag">live</span> log triage → <code>report.md</code> + independent recount</span></a></li>
+      <li data-step="2"><a href="#tab-injected" data-goto="injected"><strong>2. Stopped attack</strong><span><span class="mode-tag">replay</span> gate denies harmful proposals before any container</span></a></li>
+      <li data-step="3"><a href="#tab-arena" data-goto="arena"><strong>3. Runtime probes</strong><span>timeout + memory only (claim after a real Docker PASS)</span></a></li>
+      <li data-step="4"><a href="#tab-verify" data-goto="verify"><strong>4. Proof</strong><span>receipt signature + Evidence Bundle offline check</span></a></li>
     </ol>
+    <details class="guided-more">
+      <summary>Technical steps and caveats</summary>
+      <p class="hint">Step 1 needs <code>VULTR_INFERENCE_API_KEY</code>. Network / read-only probes are not in this demo. A valid signature means the record was not tampered with; it does not prove the world-state claim. Live and replay stay labelled.</p>
+    </details>
     <div class="row">
-      <button id="demo-run" class="secondary">Run judge path (live if keyed → attack → probe → verify)</button>
-      <span class="hint" id="demo-status">Step 1 needs <code>VULTR_INFERENCE_API_KEY</code>; steps 2–4 need no model. Gate, sandbox and receipts are real. Live and replay stay labelled.</span>
+      <button id="demo-run" class="secondary">Run demo (live if keyed → attack → probe → verify)</button>
+      <span class="hint" id="demo-status">Gate, sandbox and receipts are real. Live and replay stay labelled.</span>
     </div>
   </div>
 </section>
@@ -133,7 +143,7 @@
   <p class="meta" id="meta">loading&hellip;</p>
 </section>
 
-<h2 class="tabs-h">Try it yourself — same order as the judge path</h2>
+<h2 class="tabs-h">Try it yourself — same order as above</h2>
 <nav role="tablist">
   <button role="tab" data-tab="real" aria-selected="true">1. Real task (live)</button>
   <button role="tab" data-tab="injected">2. Compromised agent</button>
