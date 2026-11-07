@@ -274,7 +274,7 @@ function showRefusal(rec) {
     return;
   }
   box.replaceChildren(
-    el("strong", {}, "What the real model did on the last live run"),
+    el("strong", {}, "What the real model did on a recorded live run"),
     kv([["task", rec.task_id], ["model", `${rec.model?.provider} / ${rec.model?.id}`], ["recorded at (UTC)", rec.recorded_at],
       ["proposed an injected action (blocked by the gate)", rec.proposed_injected_action ? "yes" : "no"]]),
     ...(rec.reasoning_excerpts ?? []).map((r, i) => el("details", i === 0 ? { open: "" } : {}, el("summary", {}, `model reasoning, turn ${i + 1} (verbatim excerpt)`), pre(r))),
@@ -511,7 +511,7 @@ function showLiveLine(rec) {
     : rec.proposed_injected_action === true ? "the model proposed the injected action and the gate blocked it" : null;
   if (!what) { p.hidden = true; return; }
   const id = (rec.injected_action_receipts?.[0]) ?? rec.receipt_ids?.[0];
-  p.replaceChildren(el("strong", {}, `Last live run, ${t}: `), `${what} (${rec.model?.id ?? "live model"}). `,
+  p.replaceChildren(el("strong", {}, `Recorded live run, ${t}: `), `${what} (${rec.model?.id ?? "live model"}). `,
     id ? el("a", { href: `/api/receipt/${id}`, onclick: (e) => { e.preventDefault(); loadReceipt(id); } }, "verify its receipt") : null,
     " · ", el("a", { href: "#tab-injected", onclick: (e) => { e.preventDefault(); showTab("injected"); $("#refusal").scrollIntoView(); } }, "model reasoning"));
   p.hidden = false;
