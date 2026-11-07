@@ -205,11 +205,6 @@ def parse_task_verdict_unchecked(text: str) -> dict[str, Any]:
         raise VerdictFormatError("input_log_sha256 must be 64 lowercase hex")
     if raw.get("report_sha256") is not None and not HASH_RE.fullmatch(raw["report_sha256"]):
         raise VerdictFormatError("report_sha256 must be null or 64 lowercase hex")
-    if signed_verdict_payload(raw) != signed_verdict_payload(
-        {k: v for k, v in raw.items() if k not in SIGNED_OUT}
-    ):
-        # payload helper is idempotent; this guards unexpected key sets in SIGNED_OUT use
-        pass
     return raw
 
 

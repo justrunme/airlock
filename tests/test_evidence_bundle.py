@@ -214,7 +214,7 @@ def test_cli_invalid_utf8_report_with_rebuilt_manifest_exits_12(tmp_path):
 
 
 def test_extra_members_with_rewritten_unsigned_manifest_exit_17(tmp_path):
-    """Unsigned manifest must not authorize unbound files (parent host blocker)."""
+    """Reject unbound archive members even when the unsigned manifest is rewritten."""
     blob = FIXTURE_ZIP.read_bytes()
     with zipfile.ZipFile(io.BytesIO(blob)) as zin:
         members = {i.filename: zin.read(i) for i in zin.infolist() if not i.is_dir()}

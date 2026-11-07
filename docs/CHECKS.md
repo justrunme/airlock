@@ -83,7 +83,7 @@ Total collected tests: **1375** in 25 files.
 | `test_committed_fixture_verifies_exact_exit_0` | Read-only check of the tracked fixture (tests must not rewrite it). |
 | `test_cli_corrupt_crc_member_exits_17_not_1` |  |
 | `test_cli_invalid_utf8_report_with_rebuilt_manifest_exits_12` | Commitments checked before UTF-8 decode; invalid UTF-8 → 12, never traceback/1. |
-| `test_extra_members_with_rewritten_unsigned_manifest_exit_17` | Unsigned manifest must not authorize unbound files (parent host blocker). |
+| `test_extra_members_with_rewritten_unsigned_manifest_exit_17` | Reject unbound archive members even when the unsigned manifest is rewritten. |
 | `test_extra_txt_only_with_rewritten_manifest_exit_17` |  |
 | `test_cli_tampered_input_exits_11` |  |
 | `test_cli_attacker_key_exits_10` |  |

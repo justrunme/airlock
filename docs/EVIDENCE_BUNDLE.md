@@ -48,4 +48,4 @@ No Airlock server, network, or inference is required.
 - Export is limited to built-in fixture sample logs.
 - Does not prove host honesty at signing time.
 - Does not include runtime network/read-only probes.
-- Feature set is frozen at v1 pending parent LabLab acceptance.
+- Feature set is frozen at v1.
