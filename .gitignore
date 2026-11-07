@@ -30,4 +30,7 @@ env/
 .coverage
 htmlcov/
 
+# local Evidence Bundle fixture regeneration scratch
+tests/fixtures/evidence_bundle/_gen_data/
+
 .DS_Store

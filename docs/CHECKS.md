@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1361** in 25 files.
+Total collected tests: **1372** in 25 files.
 
 | File | Tests |
 |------|------:|
@@ -14,7 +14,7 @@ Total collected tests: **1361** in 25 files.
 | `tests/test_containment.py` | 7 |
 | `tests/test_containment_live.py` | 3 |
 | `tests/test_e2e.py` | 2 |
-| `tests/test_evidence_bundle.py` | 13 |
+| `tests/test_evidence_bundle.py` | 24 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
 | `tests/test_outcome_check.py` | 17 |
@@ -80,17 +80,28 @@ Total collected tests: **1361** in 25 files.
 |------|-------------|
 | `test_replay_bundle_verifies_offline_with_external_pubkey` |  |
 | `test_signed_verdict_binds_input_report_and_receipt_chain` |  |
-| `test_tamper_input_report_verdict_fail` |  |
-| `test_tamper_receipt_signature_and_reorder` |  |
-| `test_missing_duplicate_cross_task_and_attacker_key` |  |
-| `test_unsupported_verifier_version_rejected` |  |
-| `test_failed_recount_is_authentic_not_success` | Valid signed FAILED recount is integrity-OK and distinct from VERIFIED. |
-| `test_archive_traversal_and_symlink_rejected` |  |
+| `test_committed_fixture_verifies_exact_exit_0` | Read-only check of the tracked fixture (tests must not rewrite it). |
+| `test_cli_corrupt_crc_member_exits_17_not_1` |  |
+| `test_cli_invalid_utf8_report_with_rebuilt_manifest_exits_12` | Commitments checked before UTF-8 decode; invalid UTF-8 → 12, never traceback/1. |
+| `test_cli_tampered_input_exits_11` |  |
+| `test_cli_attacker_key_exits_10` |  |
+| `test_duplicate_zip_member_names_exit_17` |  |
+| `test_symlink_mode_member_exit_17` |  |
+| `test_zipbomb_mismatched_declared_size_exit_17` | Header file_size that does not match inflated bytes is rejected. |
+| `test_collector_rejects_gated_step_without_receipt_id` |  |
+| `test_removed_receipt_and_resigned_verdict_is_incomplete` | Re-sign omitting an action but leave its receipt file → completeness fail (17). |
+| `test_missing_receipt_file_listed_in_verdict_exit_17` |  |
+| `test_correctly_signed_cross_task_receipt_rejected` |  |
+| `test_malformed_action_receipt_meta_no_keyerror` |  |
+| `test_failed_recount_exact_exit_1` |  |
+| `test_nested_counts_inconclusive_exact_exit_2` |  |
+| `test_unsupported_verifier_exact_exit_18` |  |
 | `test_export_rejects_non_fixture_log` |  |
-| `test_offline_verifier_makes_no_network_calls` |  |
-| `test_old_action_receipt_wire_format_unchanged` | Evidence work must not alter ActionReceipt schema / verify path. |
-| `test_nested_counts_in_bundle_report_inconclusive` |  |
-| `test_materialize_fixture_bundle_for_parent_review` | Write a runnable sample bundle + trusted pubkey under tests/fixtures/. |
+| `test_offline_cli_subprocess_with_network_disabled` | Subprocess offline CLI must not need network; socket factory blocked in-process too. |
+| `test_verdict_shaped_json_rejected_by_receipt_verifier` |  |
+| `test_old_action_receipt_wire_format_unchanged` |  |
+| `test_evidence_postprocess_error_keeps_task_result` |  |
+| `test_disk_prune_removes_old_zip_files` | Index cap and on-disk zip deletion stay aligned; active write is not unlinked. |
 
 ## `tests/test_jcs.py`
 

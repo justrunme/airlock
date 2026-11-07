@@ -1,5 +1,6 @@
 """FastAPI application: tasks, arena, receipts, policy and the static UI."""
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -295,8 +296,13 @@ def create_app(
     evidence_lock = threading.Lock()
     max_evidence_cache = 32
 
-    def attach_task_verdict(out: dict, log_bytes: bytes) -> dict:
-        """Sign a Task Verdict binding input, report bytes, and ordered receipts."""
+    def attach_task_verdict(out: dict, log_bytes: bytes) -> None:
+        """Sign a Task Verdict binding input, report bytes, and ordered receipts.
+
+        Never silently drops gated actions. Missing stored receipts refuse the
+        verdict (task result itself is unchanged). Raises on hard failures so
+        finalize can mark evidence unavailable without a 500.
+        """
         report = out.get("report") or {}
         report_text = report.get("text")
         actions = collect_action_receipts_from_result(out)
@@ -304,7 +310,9 @@ def create_app(
         for a in actions:
             text = chain.get_text(a["receipt_hash"])
             if text is None:
-                continue
+                raise EvidenceBundleError(
+                    f"incomplete receipt chain: stored receipt missing for {a['receipt_hash']}"
+                )
             enriched.append(
                 {
                     "action_id": a["action_id"],
@@ -312,41 +320,34 @@ def create_app(
                     "receipt_sha256": hash_data(text.encode("utf-8")),
                 }
             )
+        if len(enriched) != len(actions):
+            raise EvidenceBundleError("incomplete receipt chain: enrich mismatch")
         steps_ok = True
         if out.get("mode") == "replay_compromised":
             steps_ok = bool(out.get("steps"))
         elif "turns" in out:
             steps_ok = not any(t.get("error") for t in out.get("turns") or [])
-        try:
-            unsigned = build_task_verdict(
-                task_id=out["task_id"],
-                task_kind=out.get("kind") or "real",
-                mode=out.get("mode") or "live",
-                input_log=log_bytes,
-                report_text=report_text,
-                report_sha256_claimed=report.get("sha256"),
-                action_receipts=enriched,
-                outcome=out.get("outcome"),
-                steps_ok=steps_ok,
-            )
-            out["task_verdict"] = sign_task_verdict(signer, unsigned)
-        except (VerdictFormatError, EvidenceBundleError, OSError, ReceiptFormatError) as e:
-            log.warning("task verdict not attached for %s: %s", out.get("task_id"), e)
-            out["task_verdict"] = None
-        return out
+        unsigned = build_task_verdict(
+            task_id=out["task_id"],
+            task_kind=out.get("kind") or "real",
+            mode=out.get("mode") or "live",
+            input_log=log_bytes,
+            report_text=report_text,
+            report_sha256_claimed=report.get("sha256"),
+            action_receipts=enriched,
+            outcome=out.get("outcome"),
+            steps_ok=steps_ok,
+        )
+        out["task_verdict"] = sign_task_verdict(signer, unsigned)
 
-    def store_evidence_bundle(out: dict, log_bytes: bytes) -> None:
-        """Cache an authorized Evidence Bundle zip for download (fixture logs only)."""
-        try:
-            blob = build_evidence_bundle(
-                signer=signer,
-                chain_get_text=chain.get_text,
-                task_result=out,
-                input_log=log_bytes,
-            )
-        except EvidenceBundleError as e:
-            log.info("evidence bundle not stored for %s: %s", out.get("task_id"), e)
-            return
+    def store_evidence_bundle(out: dict, log_bytes: bytes) -> Path:
+        """Cache an authorized Evidence Bundle zip; prune disk to match index cap."""
+        blob = build_evidence_bundle(
+            signer=signer,
+            chain_get_text=chain.get_text,
+            task_result=out,
+            input_log=log_bytes,
+        )
         path = evidence_dir / f"{out['task_id']}.zip"
         tmp = path.with_suffix(".tmp")
         tmp.write_bytes(blob)
@@ -363,25 +364,85 @@ def create_app(
         with evidence_lock:
             evidence_index[out["task_id"]] = meta
             while len(evidence_index) > max_evidence_cache:
-                evidence_index.pop(next(iter(evidence_index)))
+                old_id = next(iter(evidence_index))
+                if old_id == out["task_id"]:
+                    # Keep the just-written bundle; rotate so another entry is oldest.
+                    evidence_index[old_id] = evidence_index.pop(old_id)
+                    if len(evidence_index) <= max_evidence_cache:
+                        break
+                    continue
+                evidence_index.pop(old_id)
+                # Delete under the lock after index removal; never unlink the active write.
+                old_path = evidence_dir / f"{old_id}.zip"
+                with contextlib.suppress(OSError):
+                    old_path.unlink()
+        return path
 
     def finalize_task_result(out: dict, log_bytes: bytes) -> dict:
-        attach_task_verdict(out, log_bytes)
-        store_evidence_bundle(out, log_bytes)
+        """Attach verdict + bundle after a successful task; never fail the HTTP result.
+
+        On post-processing errors the task body stays truthful; evidence is
+        explicitly unavailable (not a false SIGNED/VERIFIED claim).
+        """
+        verify_hint = (
+            "airlock verify-bundle <bundle.zip> --pubkey <auditor-trusted.pem> "
+            "(bundled signing.pub is convenience only, not the trust anchor)"
+        )
+        trust_note = (
+            "Signed origin (this server's key) is not the same as an independently "
+            "checked corpus claim. A valid ActionReceipt does not sign the Task Verdict."
+        )
+        try:
+            attach_task_verdict(out, log_bytes)
+            store_evidence_bundle(out, log_bytes)
+        except (
+            VerdictFormatError,
+            EvidenceBundleError,
+            ReceiptFormatError,
+            OSError,
+            KeyError,
+        ) as e:
+            log.warning(
+                "evidence post-process unavailable for %s: %s: %s",
+                out.get("task_id"),
+                type(e).__name__,
+                e,
+            )
+            out.setdefault("task_verdict", None)
+            out["evidence_bundle"] = {
+                "available": False,
+                "download_path": None,
+                "status": "unavailable",
+                "error": type(e).__name__,
+                "detail": str(e),
+                "verify_hint": verify_hint,
+                "recount_status": None,
+                "trust_note": trust_note,
+            }
+            return out
+        except Exception as e:
+            log.exception("unexpected evidence post-process error for %s", out.get("task_id"))
+            out.setdefault("task_verdict", None)
+            out["evidence_bundle"] = {
+                "available": False,
+                "download_path": None,
+                "status": "unavailable",
+                "error": type(e).__name__,
+                "detail": str(e),
+                "verify_hint": verify_hint,
+                "recount_status": None,
+                "trust_note": trust_note,
+            }
+            return out
         tv = out.get("task_verdict") or {}
         available = (evidence_dir / f"{out['task_id']}.zip").is_file()
         out["evidence_bundle"] = {
             "available": available,
             "download_path": f"/api/evidence-bundle/{out['task_id']}" if available else None,
-            "verify_hint": (
-                "airlock verify-bundle <bundle.zip> --pubkey <auditor-trusted.pem> "
-                "(bundled signing.pub is convenience only, not the trust anchor)"
-            ),
+            "status": "ready" if available else "unavailable",
+            "verify_hint": verify_hint,
             "recount_status": tv.get("recount_status"),
-            "trust_note": (
-                "Signed origin (this server's key) is not the same as an independently "
-                "checked corpus claim. A valid ActionReceipt does not sign the Task Verdict."
-            ),
+            "trust_note": trust_note,
         }
         return out
 

@@ -39,8 +39,9 @@ No Airlock server, network, or inference is required.
 | 12 | Schema error |
 | 15 | Trusted key missing/invalid |
 | 16 | I/O error |
-| 17 | Bundle structure / archive safety |
+| 17 | Bundle structure / archive safety / corrupt member |
 | 18 | Unsupported verifier version |
+| 19 | Unexpected/internal (fail-closed; never means authentic) |
 
 ## Limitations
 
