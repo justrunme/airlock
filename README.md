@@ -34,7 +34,7 @@ An LLM only proposes. A deterministic policy gate decides. Allowed code runs in 
 
 ![Receipt verified in the browser](docs/img/06-verify-valid.png)
 
-*Tab 4 (Verify a receipt). The browser checks JSON, schema, SHA-256 over RFC 8785 JCS, and the Ed25519 signature via WebCrypto. Chain linkage is what `airlock verify-bundle (Evidence Bundle v1; see docs/EVIDENCE_BUNDLE.md) · airlock verify-chain` is for; the page does not check it.*
+*Tab 4 (Verify a receipt). The browser checks JSON, schema, SHA-256 over RFC 8785 JCS, and the Ed25519 signature via WebCrypto. Chain linkage is what `airlock verify-chain` is for; the page does not check it. Task-level Evidence Bundle checks use the separate offline CLI `airlock verify-bundle` (see docs/EVIDENCE_BUNDLE.md).*
 
 ![Tampered receipt marked INVALID](docs/img/07-verify-invalid.png)
 
@@ -50,6 +50,8 @@ The page opens with a button, "Watch Airlock stop an attack". It replays a compr
 2. **Real task (live model).** The agent analyses a sample app log and writes a Markdown report. Every action it proposes goes through the gate.
 3. **Try to break it.** You type code yourself and see the verdict, the rules, the run output and the receipt.
 4. **Verify a receipt.** Paste any receipt and the page checks the JSON, the schema, the SHA-256 hash over RFC 8785 JCS and the signature with WebCrypto. It does not check the hash chain; that is what the offline CLI `airlock verify-chain` is for. A tamper button shows what a failed check looks like.
+
+When evidence post-processing succeeds, live and replay tasks can export an Evidence Bundle for offline `airlock verify-bundle` with a separately trusted public key; if export fails closed, the task result remains and evidence is marked unavailable.
 
 ## What is actually enforced
 
@@ -169,7 +171,7 @@ sudo systemctl restart airlock-web
 
 ## Demo script
 
-Film / judge in this order (also the "Run judge path" button on the page):
+Film / judge in this order (also the "Run demo" button on the page):
 
 1. **Useful live result.** Tab 1 (Real task, live model). Needs `VULTR_INFERENCE_API_KEY`. The model analyses `/work/input/app.log` on this corpus, writes `report.md` with a required ```airlock-counts fence (ERROR/WARN integers only), and the page shows downloadable report text, raw stdout, cleanup evidence, and an independent recount against that fence only (VERIFIED/FAILED/INCONCLUSIVE on this corpus only; prose/examples/quotes are ignored). Receipts carry `"context": {"mode": "live", "planner": "model"}`.
 2. **Attack contained (policy gate).** Tab 2 (Compromised agent) → "Replay a compromised agent". Proposals are scripted; the gate, sandbox and receipts are real:
