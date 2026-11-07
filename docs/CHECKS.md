@@ -6,7 +6,7 @@ CI fails if this file differs from the collection (`--check`).
 Pass/skip status depends on the environment and is not recorded here. Docker tests skip
 with an explicit reason when no daemon is reachable; gVisor tests skip unless runsc is present.
 
-Total collected tests: **1372** in 25 files.
+Total collected tests: **1375** in 25 files.
 
 | File | Tests |
 |------|------:|
@@ -14,7 +14,7 @@ Total collected tests: **1372** in 25 files.
 | `tests/test_containment.py` | 7 |
 | `tests/test_containment_live.py` | 3 |
 | `tests/test_e2e.py` | 2 |
-| `tests/test_evidence_bundle.py` | 24 |
+| `tests/test_evidence_bundle.py` | 27 |
 | `tests/test_jcs.py` | 8 |
 | `tests/test_network.py` | 2 |
 | `tests/test_outcome_check.py` | 17 |
@@ -83,6 +83,8 @@ Total collected tests: **1372** in 25 files.
 | `test_committed_fixture_verifies_exact_exit_0` | Read-only check of the tracked fixture (tests must not rewrite it). |
 | `test_cli_corrupt_crc_member_exits_17_not_1` |  |
 | `test_cli_invalid_utf8_report_with_rebuilt_manifest_exits_12` | Commitments checked before UTF-8 decode; invalid UTF-8 → 12, never traceback/1. |
+| `test_extra_members_with_rewritten_unsigned_manifest_exit_17` | Unsigned manifest must not authorize unbound files (parent host blocker). |
+| `test_extra_txt_only_with_rewritten_manifest_exit_17` |  |
 | `test_cli_tampered_input_exits_11` |  |
 | `test_cli_attacker_key_exits_10` |  |
 | `test_duplicate_zip_member_names_exit_17` |  |
@@ -101,6 +103,7 @@ Total collected tests: **1372** in 25 files.
 | `test_verdict_shaped_json_rejected_by_receipt_verifier` |  |
 | `test_old_action_receipt_wire_format_unchanged` |  |
 | `test_evidence_postprocess_error_keeps_task_result` |  |
+| `test_startup_prunes_leftover_evidence_zips` | After restart, owned zips on disk are bounded to the cache cap. |
 | `test_disk_prune_removes_old_zip_files` | Index cap and on-disk zip deletion stay aligned; active write is not unlinked. |
 
 ## `tests/test_jcs.py`

@@ -355,6 +355,23 @@ def _validate_action_receipt_meta(meta: object, index: int) -> dict[str, Any] | 
     return out
 
 
+def _allowed_members_from_verdict(
+    verdict: dict[str, Any], validated: list[dict[str, Any]]
+) -> tuple[set[str], set[str]]:
+    """Return (required, optional) member paths from the signed Task Verdict.
+
+    Manifest is unsigned and never expands the allowed set. Optional is only
+    the convenience public key copy.
+    """
+    required = {MANIFEST_NAME, VERDICT_NAME, INPUT_NAME}
+    for meta in validated:
+        required.add(f"{RECEIPTS_DIR}{meta['seq']:04d}_{meta['receipt_hash']}.json")
+    if verdict.get("report_sha256") is not None:
+        required.add(REPORT_NAME)
+    optional = {PUBKEY_NAME}
+    return required, optional
+
+
 def _verify_evidence_bundle_inner(
     blob: bytes,
     trusted_pubkey: Ed25519PublicKey,
@@ -368,49 +385,7 @@ def _verify_evidence_bundle_inner(
     if INPUT_NAME not in files:
         return BundleVerifyResult(STATUS_BUNDLE, "missing input/app.log")
 
-    try:
-        manifest = parse_strict_json(files[MANIFEST_NAME].decode("utf-8"))
-    except (ReceiptFormatError, UnicodeDecodeError) as e:
-        return BundleVerifyResult(STATUS_SCHEMA, f"manifest: {e}")
-    if not isinstance(manifest, dict):
-        return BundleVerifyResult(STATUS_SCHEMA, "manifest must be an object")
-    if manifest.get("schema_v") != BUNDLE_SCHEMA_V or manifest.get("bundle_v") != BUNDLE_V:
-        return BundleVerifyResult(STATUS_BUNDLE, "unsupported bundle version")
-
-    expected_members = manifest.get("members")
-    if not isinstance(expected_members, list):
-        return BundleVerifyResult(STATUS_SCHEMA, "manifest.members must be a list")
-
-    listed = {}
-    for entry in expected_members:
-        if not isinstance(entry, dict):
-            return BundleVerifyResult(STATUS_SCHEMA, "bad manifest member entry")
-        path = entry.get("path")
-        sha = entry.get("sha256")
-        size = entry.get("size")
-        if not isinstance(path, str) or not isinstance(sha, str) or not isinstance(size, int):
-            return BundleVerifyResult(STATUS_SCHEMA, "manifest member fields invalid")
-        if isinstance(size, bool):
-            return BundleVerifyResult(STATUS_SCHEMA, "manifest member size must be int")
-        if path in listed:
-            return BundleVerifyResult(STATUS_BUNDLE, f"duplicate manifest path {path}")
-        listed[path] = (sha, size)
-
-    file_keys = set(files) - {MANIFEST_NAME}
-    if set(listed) != file_keys:
-        return BundleVerifyResult(
-            STATUS_BUNDLE,
-            f"manifest members mismatch files: listed={sorted(listed)} files={sorted(file_keys)}",
-        )
-    for path, (sha, size) in listed.items():
-        data = files[path]
-        if not HASH_RE.fullmatch(sha):
-            return BundleVerifyResult(STATUS_SCHEMA, f"bad sha256 in manifest for {path}")
-        if len(data) != size or _member_sha(data) != sha:
-            return BundleVerifyResult(STATUS_HASH, f"member hash/size mismatch: {path}")
-
-    # Verify signed verdict on raw bytes commitment path: decode UTF-8 only after
-    # we treat the member as present; hash binding is checked inside verify_task_verdict.
+    # Signed verdict first — membership is derived from it, not the unsigned manifest.
     try:
         verdict_text = files[VERDICT_NAME].decode("utf-8")
     except UnicodeDecodeError as e:
@@ -443,6 +418,91 @@ def _verify_evidence_bundle_inner(
             "verifier code_hash does not match this airlock.counts.error_warn v1",
         )
 
+    ar = verdict.get("action_receipts")
+    if not isinstance(ar, list):
+        return BundleVerifyResult(STATUS_SCHEMA, "action_receipts must be a list")
+    if len(ar) > MAX_RECEIPTS:
+        return BundleVerifyResult(STATUS_BUNDLE, "too many action receipts")
+
+    validated: list[dict[str, Any]] = []
+    for i, meta in enumerate(ar):
+        vmeta = _validate_action_receipt_meta(meta, i)
+        if isinstance(vmeta, BundleVerifyResult):
+            return vmeta
+        if vmeta["seq"] != i + 1:
+            return BundleVerifyResult(STATUS_BUNDLE, f"action_receipts seq out of order at {i}")
+        validated.append(vmeta)
+
+    required, optional = _allowed_members_from_verdict(verdict, validated)
+    present = set(files)
+    missing = required - present
+    if missing:
+        return BundleVerifyResult(
+            STATUS_BUNDLE, f"missing required members from signed verdict: {sorted(missing)}"
+        )
+    unbound = present - required - optional
+    if unbound:
+        return BundleVerifyResult(
+            STATUS_BUNDLE,
+            f"unbound archive members not permitted by signed verdict: {sorted(unbound)}",
+        )
+    # report.md present only when verdict commits to a report
+    if REPORT_NAME in present and verdict.get("report_sha256") is None:
+        return BundleVerifyResult(STATUS_BUNDLE, "unbound report.md without verdict commitment")
+
+    # Manifest is convenience for size/hash listing only — never expands membership.
+    # Extra top-level keys are ignored (not trusted).
+    try:
+        manifest = parse_strict_json(files[MANIFEST_NAME].decode("utf-8"))
+    except (ReceiptFormatError, UnicodeDecodeError) as e:
+        return BundleVerifyResult(STATUS_SCHEMA, f"manifest: {e}")
+    if not isinstance(manifest, dict):
+        return BundleVerifyResult(STATUS_SCHEMA, "manifest must be an object")
+    if manifest.get("schema_v") != BUNDLE_SCHEMA_V or manifest.get("bundle_v") != BUNDLE_V:
+        return BundleVerifyResult(STATUS_BUNDLE, "unsupported bundle version")
+
+    expected_members = manifest.get("members")
+    if expected_members is not None:
+        if not isinstance(expected_members, list):
+            return BundleVerifyResult(STATUS_SCHEMA, "manifest.members must be a list")
+        listed: dict[str, tuple[str, int]] = {}
+        allowed_non_manifest = (required | (present & optional)) - {MANIFEST_NAME}
+        for entry in expected_members:
+            if not isinstance(entry, dict):
+                return BundleVerifyResult(STATUS_SCHEMA, "bad manifest member entry")
+            path = entry.get("path")
+            sha = entry.get("sha256")
+            size = entry.get("size")
+            if not isinstance(path, str) or not isinstance(sha, str) or not isinstance(size, int):
+                return BundleVerifyResult(STATUS_SCHEMA, "manifest member fields invalid")
+            if isinstance(size, bool):
+                return BundleVerifyResult(STATUS_SCHEMA, "manifest member size must be int")
+            if path == MANIFEST_NAME:
+                return BundleVerifyResult(
+                    STATUS_BUNDLE, "manifest must not list itself as a member"
+                )
+            if path not in allowed_non_manifest:
+                return BundleVerifyResult(
+                    STATUS_BUNDLE,
+                    f"manifest lists unbound path not in signed verdict set: {path}",
+                )
+            if path in listed:
+                return BundleVerifyResult(STATUS_BUNDLE, f"duplicate manifest path {path}")
+            if not HASH_RE.fullmatch(sha):
+                return BundleVerifyResult(STATUS_SCHEMA, f"bad sha256 in manifest for {path}")
+            listed[path] = (sha, size)
+        # If manifest lists members, it must cover exactly the allowed non-manifest set.
+        if set(listed) != allowed_non_manifest:
+            return BundleVerifyResult(
+                STATUS_BUNDLE,
+                "manifest.members must exactly match signed-verdict allowed files "
+                f"(listed={sorted(listed)} allowed={sorted(allowed_non_manifest)})",
+            )
+        for path, (sha, size) in listed.items():
+            data = files[path]
+            if len(data) != size or _member_sha(data) != sha:
+                return BundleVerifyResult(STATUS_HASH, f"member hash/size mismatch: {path}")
+
     input_log = files[INPUT_NAME]
     if hash_data(input_log) != verdict.get("input_log_sha256"):
         return BundleVerifyResult(STATUS_HASH, "input log hash does not match task verdict")
@@ -450,7 +510,6 @@ def _verify_evidence_bundle_inner(
     report_text = None
     if REPORT_NAME in files:
         report_raw = files[REPORT_NAME]
-        # Hash/commitment first — never decode before binding checks.
         expected_report_hash = verdict.get("report_sha256")
         if not isinstance(expected_report_hash, str) or not HASH_RE.fullmatch(expected_report_hash):
             return BundleVerifyResult(
@@ -479,32 +538,8 @@ def _verify_evidence_bundle_inner(
     if check["reported"] != verdict.get("recount_reported"):
         return BundleVerifyResult(STATUS_HASH, "recount_reported does not match recomputation")
 
-    ar = verdict.get("action_receipts")
-    if not isinstance(ar, list):
-        return BundleVerifyResult(STATUS_SCHEMA, "action_receipts must be a list")
-    if len(ar) > MAX_RECEIPTS:
-        return BundleVerifyResult(STATUS_BUNDLE, "too many action receipts")
-
-    validated: list[dict[str, Any]] = []
-    for i, meta in enumerate(ar):
-        vmeta = _validate_action_receipt_meta(meta, i)
-        if isinstance(vmeta, BundleVerifyResult):
-            return vmeta
-        if vmeta["seq"] != i + 1:
-            return BundleVerifyResult(STATUS_BUNDLE, f"action_receipts seq out of order at {i}")
-        validated.append(vmeta)
-
-    receipt_files = sorted(n for n in files if n.startswith(RECEIPTS_DIR) and n.endswith(".json"))
-    if len(receipt_files) != len(validated):
-        return BundleVerifyResult(
-            STATUS_BUNDLE,
-            f"receipt count mismatch: files={len(receipt_files)} verdict={len(validated)}",
-        )
-
     for meta in validated:
         expected_name = f"{RECEIPTS_DIR}{meta['seq']:04d}_{meta['receipt_hash']}.json"
-        if expected_name not in files:
-            return BundleVerifyResult(STATUS_BUNDLE, f"missing ordered receipt {expected_name}")
         raw = files[expected_name]
         if "receipt_sha256" in meta and _member_sha(raw) != meta["receipt_sha256"]:
             return BundleVerifyResult(
@@ -535,10 +570,6 @@ def _verify_evidence_bundle_inner(
                 f"{expected_name}: action_id mismatch",
             )
 
-    expected_names = {f"{RECEIPTS_DIR}{m['seq']:04d}_{m['receipt_hash']}.json" for m in validated}
-    if set(receipt_files) != expected_names:
-        return BundleVerifyResult(STATUS_BUNDLE, "unexpected receipt filenames")
-
     recount = verdict["recount_status"]
     exec_status = verdict["execution_status"]
     mode = verdict.get("mode")
@@ -549,7 +580,7 @@ def _verify_evidence_bundle_inner(
         "task_id": verdict["task_id"],
         "task_kind": task_kind,
         "mode": mode,
-        "fixture_log": manifest.get("fixture_log"),
+        "fixture_log": manifest.get("fixture_log") if isinstance(manifest, dict) else None,
         "receipts": len(validated),
     }
     if exec_status != "complete" or recount == "INCONCLUSIVE":

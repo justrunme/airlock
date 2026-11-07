@@ -213,6 +213,75 @@ def test_cli_invalid_utf8_report_with_rebuilt_manifest_exits_12(tmp_path):
     assert "Traceback" not in proc.stderr
 
 
+def test_extra_members_with_rewritten_unsigned_manifest_exit_17(tmp_path):
+    """Unsigned manifest must not authorize unbound files (parent host blocker)."""
+    blob = FIXTURE_ZIP.read_bytes()
+    with zipfile.ZipFile(io.BytesIO(blob)) as zin:
+        members = {i.filename: zin.read(i) for i in zin.infolist() if not i.is_dir()}
+    members["extra.txt"] = b"pwned"
+    members["x.txt"] = b"x"
+    members["report2.md"] = b"# alternate report\n"
+    members["receipts/x.txt"] = b"not-a-receipt"
+    # Fake receipt-like name not listed in signed verdict
+    members["receipts/9999_" + ("ab" * 32) + ".json"] = b"{}"
+    man = {
+        "schema_v": 1,
+        "bundle_v": 1,
+        "task_id": "attacker",
+        "fixture_log": "app_injected.log",
+        "evil_metadata": "not trusted",
+        "trust_note": "attacker",
+        "members": [
+            {"path": p, "sha256": hash_data(d), "size": len(d)}
+            for p, d in members.items()
+            if p != MANIFEST_NAME
+        ],
+    }
+    members[MANIFEST_NAME] = json.dumps(man, indent=2, sort_keys=True).encode() + b"\n"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zout:
+        for n, d in members.items():
+            zout.writestr(n, d)
+    evil = buf.getvalue()
+    pub = ReceiptSigner.load_public_key(FIXTURE_PEM)
+    r = verify_evidence_bundle(evil, pub)
+    assert r.status == STATUS_BUNDLE, r
+    assert "unbound" in r.message
+    path = tmp_path / "extra.zip"
+    path.write_bytes(evil)
+    proc = _cli_verify(path, FIXTURE_PEM)
+    assert proc.returncode == 17, (proc.returncode, proc.stdout, proc.stderr)
+
+
+def test_extra_txt_only_with_rewritten_manifest_exit_17(tmp_path):
+    blob = FIXTURE_ZIP.read_bytes()
+    with zipfile.ZipFile(io.BytesIO(blob)) as zin:
+        members = {i.filename: zin.read(i) for i in zin.infolist() if not i.is_dir()}
+    members["extra.txt"] = b"pwned"
+    man = {
+        "schema_v": 1,
+        "bundle_v": 1,
+        "task_id": "attacker",
+        "members": [
+            {"path": p, "sha256": hash_data(d), "size": len(d)}
+            for p, d in members.items()
+            if p != MANIFEST_NAME
+        ],
+    }
+    members[MANIFEST_NAME] = json.dumps(man, indent=2, sort_keys=True).encode() + b"\n"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zout:
+        for n, d in members.items():
+            zout.writestr(n, d)
+    evil = buf.getvalue()
+    assert verify_evidence_bundle(evil, ReceiptSigner.load_public_key(FIXTURE_PEM)).status == (
+        STATUS_BUNDLE
+    )
+    path = tmp_path / "extra2.zip"
+    path.write_bytes(evil)
+    assert _cli_verify(path, FIXTURE_PEM).returncode == 17
+
+
 def test_cli_tampered_input_exits_11(tmp_path):
     blob = FIXTURE_ZIP.read_bytes()
     flipped = _rewrite_zip(blob, {INPUT_NAME: b"INFO x\nERROR tampered\n"})
@@ -578,6 +647,27 @@ def test_evidence_postprocess_error_keeps_task_result(tmp_path):
     assert body["evidence_bundle"]["status"] == "unavailable"
     assert body["task_verdict"] is None
     assert body["evidence_bundle"]["error"]
+    # Client must not receive server path leakage from str(exception).
+    assert body["evidence_bundle"]["detail"] == "evidence post-processing failed"
+    assert "/data" not in body["evidence_bundle"]["detail"]
+    assert "tmp" not in body["evidence_bundle"]["detail"].lower()
+
+
+def test_startup_prunes_leftover_evidence_zips(tmp_path):
+    """After restart, owned zips on disk are bounded to the cache cap."""
+    data = tmp_path / "data"
+    evi = data / "evidence_bundles"
+    evi.mkdir(parents=True)
+    # Plant 40 owned leftover zips + junk/symlink that must not be deleted blindly.
+    for i in range(40):
+        (evi / f"replay-{i:012x}.zip").write_bytes(b"PK\x05\x06" + b"\x00" * 18)
+    junk = evi / "not-a-task.zip"
+    junk.write_bytes(b"nope")
+    settings = Settings(data_dir=data, task_per_min=50)
+    create_app(settings, runner_factory=FakeRunner, llm_factory=lambda: None)
+    owned = sorted(evi.glob("replay-*.zip"))
+    assert len(owned) == 32
+    assert junk.is_file()  # non-matching name left alone
 
 
 def test_disk_prune_removes_old_zip_files(tmp_path):

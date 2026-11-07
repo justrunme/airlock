@@ -295,6 +295,54 @@ def create_app(
     evidence_index: dict[str, dict[str, Any]] = {}
     evidence_lock = threading.Lock()
     max_evidence_cache = 32
+    # Owned evidence zips only: <kind>-<12 hex>.zip under evidence_dir (no traversal).
+    evidence_zip_name = re.compile(r"^[a-z]+-[0-9a-f]{12}\.zip$")
+
+    def _safe_evidence_zip(path: Path) -> bool:
+        """True only for a regular, non-symlink file owned under evidence_dir."""
+        try:
+            if path.is_symlink() or not path.is_file():
+                return False
+            if not evidence_zip_name.fullmatch(path.name):
+                return False
+            resolved = path.resolve()
+            root = evidence_dir.resolve()
+            return resolved.parent == root
+        except OSError:
+            return False
+
+    def _prune_evidence_disk_locked() -> None:
+        """Keep at most max_evidence_cache owned zips on disk; drop oldest by mtime."""
+        owned: list[Path] = []
+        with contextlib.suppress(OSError):
+            for p in evidence_dir.iterdir():
+                if _safe_evidence_zip(p):
+                    owned.append(p)
+        owned.sort(key=lambda p: p.stat().st_mtime_ns, reverse=True)
+        keep = owned[:max_evidence_cache]
+        for p in owned[max_evidence_cache:]:
+            with contextlib.suppress(OSError):
+                if _safe_evidence_zip(p):
+                    p.unlink()
+        # Index tracks kept bundles (restart-safe); drop stale keys.
+        keep_ids = {p.stem for p in keep}
+        for tid in list(evidence_index):
+            if tid not in keep_ids:
+                evidence_index.pop(tid, None)
+        for p in keep:
+            evidence_index.setdefault(
+                p.stem,
+                {
+                    "task_id": p.stem,
+                    "recorded_at": time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime(p.stat().st_mtime)
+                    ),
+                    "size": p.stat().st_size,
+                },
+            )
+
+    with evidence_lock:
+        _prune_evidence_disk_locked()
 
     def attach_task_verdict(out: dict, log_bytes: bytes) -> None:
         """Sign a Task Verdict binding input, report bytes, and ordered receipts.
@@ -363,19 +411,10 @@ def create_app(
         }
         with evidence_lock:
             evidence_index[out["task_id"]] = meta
-            while len(evidence_index) > max_evidence_cache:
-                old_id = next(iter(evidence_index))
-                if old_id == out["task_id"]:
-                    # Keep the just-written bundle; rotate so another entry is oldest.
-                    evidence_index[old_id] = evidence_index.pop(old_id)
-                    if len(evidence_index) <= max_evidence_cache:
-                        break
-                    continue
-                evidence_index.pop(old_id)
-                # Delete under the lock after index removal; never unlink the active write.
-                old_path = evidence_dir / f"{old_id}.zip"
-                with contextlib.suppress(OSError):
-                    old_path.unlink()
+            # Bound disk to the same cap (covers restart leftovers + this write).
+            _prune_evidence_disk_locked()
+            # Ensure the just-written bundle remains indexed even if mtime ties.
+            evidence_index[out["task_id"]] = meta
         return path
 
     def finalize_task_result(out: dict, log_bytes: bytes) -> dict:
@@ -402,6 +441,7 @@ def create_app(
             OSError,
             KeyError,
         ) as e:
+            # Server log keeps the real exception; client gets a generic reason (no paths).
             log.warning(
                 "evidence post-process unavailable for %s: %s: %s",
                 out.get("task_id"),
@@ -414,7 +454,7 @@ def create_app(
                 "download_path": None,
                 "status": "unavailable",
                 "error": type(e).__name__,
-                "detail": str(e),
+                "detail": "evidence post-processing failed",
                 "verify_hint": verify_hint,
                 "recount_status": None,
                 "trust_note": trust_note,
@@ -428,7 +468,7 @@ def create_app(
                 "download_path": None,
                 "status": "unavailable",
                 "error": type(e).__name__,
-                "detail": str(e),
+                "detail": "evidence post-processing failed",
                 "verify_hint": verify_hint,
                 "recount_status": None,
                 "trust_note": trust_note,
