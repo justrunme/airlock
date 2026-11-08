@@ -6,9 +6,13 @@ An LLM only proposes. A deterministic policy gate decides. Allowed code runs in 
 [![CI](https://github.com/justrunme/airlock/actions/workflows/ci.yml/badge.svg)](https://github.com/justrunme/airlock/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 
-[![Watch the 3-minute demo](docs/img/video-thumb.png)](https://youtu.be/yrYa1MisCYI)
+[![Watch the 162s English-narrated demo](docs/img/video-thumb.png)](https://lablab.build/ai-hackathons/vultr-hackathon/airlock-br0/airlock-blast-radius-zero)
+
+**Video:** [162-second English-narrated film on LabLab](https://lablab.build/ai-hackathons/vultr-hackathon/airlock-br0/airlock-blast-radius-zero).
 
 **Live demo:** https://45-77-141-253.sslip.io
+
+Archival earlier cut: https://youtu.be/yrYa1MisCYI
 
 ## See it
 
