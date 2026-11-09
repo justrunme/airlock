@@ -284,6 +284,11 @@ Smoke tests requiring live services are marked with `@pytest.mark.smoke` and ski
 
 See `docs/CHECKS.md` for the complete list of 1297 collected tests.
 
+## Author
+
+Andrey Lesnikov — Senior DevOps & AI Platform Engineer  
+[https://orcid.org/0009-0004-7583-4314](https://orcid.org/0009-0004-7583-4314)
+
 ## License
 
 MIT
