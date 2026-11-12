@@ -10,7 +10,7 @@ An LLM only proposes. A deterministic policy gate decides. Allowed code runs in 
 
 **Video:** [162-second English-narrated film on LabLab](https://lablab.build/ai-hackathons/vultr-hackathon/airlock-br0/airlock-blast-radius-zero).
 
-**Live demo:** https://45-77-141-253.sslip.io
+**Live demo:** https://airlock.justrunme.com
 
 Archival earlier cut: https://youtu.be/yrYa1MisCYI
 

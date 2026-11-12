@@ -10,15 +10,19 @@
 <meta property="og:site_name" content="Airlock (Blast Radius Zero)">
 <meta property="og:title" content="Airlock (Blast Radius Zero): analyse untrusted logs without giving the agent your host">
 <meta property="og:description" content="For SREs: the agent proposes, my policy gate decides, a disposable sandbox runs allowed code, and you get a signed decision plus a report. Team Airlock BR0.">
-<meta property="og:url" content="https://45-77-141-253.sslip.io/">
-<meta property="og:image" content="https://45-77-141-253.sslip.io/static/og.png">
+<meta property="og:url" content="https://airlock.justrunme.com/">
+<meta property="og:image" content="https://airlock.justrunme.com/static/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Airlock (Blast Radius Zero): agent action detected, curl | sh, blocked before execution, no container started, signed receipt.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Airlock (Blast Radius Zero): analyse untrusted logs without giving the agent your host">
 <meta name="twitter:description" content="For SREs: signed decisions, a disposable sandbox, and a report — without handing over the host or keys. Team Airlock BR0.">
-<meta name="twitter:image" content="https://45-77-141-253.sslip.io/static/og.png">
+<meta name="twitter:image" content="https://airlock.justrunme.com/static/og.png">
+<link rel="canonical" href="https://airlock.justrunme.com/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Airlock (Blast Radius Zero)","description":"I built Airlock (Blast Radius Zero) so an SRE can let an agent analyse untrusted logs without giving it the host or keys. A policy gate decides, a gVisor sandbox runs allowed code, and every decision is an Ed25519-signed receipt you can verify in the browser.","url":"https://airlock.justrunme.com/","codeRepository":"https://github.com/justrunme/airlock","license":"https://opensource.org/licenses/MIT","image":"https://airlock.justrunme.com/static/og.png"}
+</script>
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/app.css">
 <script type="module" src="/static/app.js"></script>
@@ -285,8 +289,9 @@
 
 <footer>
   <p>Airlock (Blast Radius Zero) · team Airlock BR0. MIT licensed.
-  Source: <a href="https://github.com/justrunme/airlock">github.com/justrunme/airlock</a>.
-  I run the demo on a Vultr Cloud Compute VM in Frankfurt.
+  Source: <a href="https://github.com/justrunme/airlock">github.com/justrunme/airlock</a> ·
+  <a href="https://justrunme.com/hackathons/#airlock">my other hackathon projects</a>.
+  I run the demo on a Hetzner server in Nuremberg; model calls go to Vultr Serverless Inference.
   Pitch stills: <a href="/static/title-card.svg">title card</a> ·
   <a href="/static/pipeline-card.svg">pipeline card</a>
   (plan → gate → gVisor sandbox → signed receipt).

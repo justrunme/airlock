@@ -146,6 +146,11 @@ class ScriptedLLM:
 
 
 GITHUB_LINK = 'href="https://github.com/justrunme/airlock"'
+NAV_LINKS = (
+    GITHUB_LINK,
+    'href="https://justrunme.com/hackathons/#airlock"',
+    'href="https://airlock.justrunme.com/"',
+)
 BENIGN = ("bash", "grep -c ERROR /work/input/app.log")
 # Explicit report.md write so FakeRunner emits an artifact (grep-only does not).
 ANALYSIS = (
@@ -245,7 +250,11 @@ class TestBasics:
         assert r.status_code == 200
         assert "default-src 'self'" in r.headers["content-security-policy"]
         # scripts, styles and images load only from this origin
-        assert not re.search(r'\b(src|href)="(https?:)?//', r.text.replace(GITHUB_LINK, ""))
+        # outbound navigation links and the canonical URL are not loaded resources
+        page = r.text
+        for link in NAV_LINKS:
+            page = page.replace(link, "")
+        assert not re.search(r'\b(src|href)="(https?:)?//', page)
         assert "<script" in r.text and 'src="/static/app.js"' in r.text
 
 
@@ -989,9 +998,41 @@ def test_share_metadata_points_at_the_static_image(make):
         'name="description"',
     ):
         assert tag in html
-    assert 'content="https://45-77-141-253.sslip.io/static/og.png"' in html
+    assert 'content="https://airlock.justrunme.com/static/og.png"' in html
     r = client.get("/static/og.png")
     assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_page_names_one_canonical_host(make):
+    html = make()[0].get("/").text
+    assert '<link rel="canonical" href="https://airlock.justrunme.com/">' in html
+    assert 'property="og:url" content="https://airlock.justrunme.com/"' in html
+    assert "sslip.io" not in html
+    m = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    ld = json.loads(m.group(1))
+    assert ld["@type"] == "SoftwareSourceCode"
+    assert ld["codeRepository"] == "https://github.com/justrunme/airlock"
+
+
+def test_head_on_index_is_allowed(make):
+    client = make()[0]
+    r = client.head("/")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/html")
+
+
+def test_robots_and_sitemap(make):
+    client = make()[0]
+    r = client.get("/robots.txt")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    assert r.text.splitlines() == [
+        "User-agent: *",
+        "Allow: /",
+        "Sitemap: https://airlock.justrunme.com/sitemap.xml",
+    ]
+    r = client.get("/sitemap.xml")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("application/xml")
+    assert re.findall(r"<loc>(.*?)</loc>", r.text) == ["https://airlock.justrunme.com/"]
 
 
 def test_browser_verifier_does_not_claim_the_chain():

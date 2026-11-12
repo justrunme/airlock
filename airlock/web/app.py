@@ -46,6 +46,14 @@ from airlock.web.pipeline import Pipeline
 
 log = logging.getLogger("airlock.web")
 STATIC = Path(__file__).parent / "static"
+PUBLIC_URL = "https://airlock.justrunme.com/"
+ROBOTS_TXT = f"User-agent: *\nAllow: /\nSitemap: {PUBLIC_URL}sitemap.xml\n"
+SITEMAP_XML = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    f"  <url><loc>{PUBLIC_URL}</loc></url>\n"
+    "</urlset>\n"
+)
 POLICY_FILES = ["policy.py", "policy_python.py", "policy_shell.py"]
 
 ARENA_CAPS = {"timeout_s": 10, "mem_mb": 128, "cpus": 0.5, "pids": 32}
@@ -793,9 +801,17 @@ def create_app(
     if STATIC.is_dir():
         app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
-        @app.get("/")
+        @app.api_route("/", methods=["GET", "HEAD"])
         def index():
             return FileResponse(STATIC / "index.html")
+
+    @app.api_route("/robots.txt", methods=["GET", "HEAD"])
+    def robots():
+        return PlainTextResponse(ROBOTS_TXT)
+
+    @app.api_route("/sitemap.xml", methods=["GET", "HEAD"])
+    def sitemap():
+        return Response(SITEMAP_XML, media_type="application/xml")
 
     return app
 
