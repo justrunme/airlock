@@ -2,11 +2,11 @@
 
 An LLM only proposes. A deterministic policy gate decides. Allowed code runs in a disposable Docker container under gVisor. Every job gets an Ed25519-signed, hash-chained receipt. Blast Radius Zero.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/justrunme/airlock/blob/main/LICENSE)
 [![CI](https://github.com/justrunme/airlock/actions/workflows/ci.yml/badge.svg)](https://github.com/justrunme/airlock/actions/workflows/ci.yml)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://github.com/justrunme/airlock/blob/main/pyproject.toml)
 
-[![Watch the 162s English-narrated demo](docs/img/video-thumb.png)](https://lablab.build/ai-hackathons/vultr-hackathon/airlock-br0/airlock-blast-radius-zero)
+[![Watch the 162s English-narrated demo](https://raw.githubusercontent.com/justrunme/airlock/main/docs/img/video-thumb.png)](https://lablab.build/ai-hackathons/vultr-hackathon/airlock-br0/airlock-blast-radius-zero)
 
 **Video:** [162-second English-narrated film on LabLab](https://lablab.build/ai-hackathons/vultr-hackathon/airlock-br0/airlock-blast-radius-zero).
 
@@ -16,31 +16,31 @@ Archival earlier cut: https://youtu.be/yrYa1MisCYI
 
 ## See it
 
-![Hero: Watch Airlock stop an attack](docs/img/01-hero.png)
+![Hero: Watch Airlock stop an attack](https://raw.githubusercontent.com/justrunme/airlock/main/docs/img/01-hero.png)
 
 *Top of the live demo. One click replays a compromised agent. No model call.*
 
-![Three harmful proposals blocked before any container starts](docs/img/02-attack-stopped.png)
+![Three harmful proposals blocked before any container starts](https://raw.githubusercontent.com/justrunme/airlock/main/docs/img/02-attack-stopped.png)
 
 *After the replay: three injected steps are blocked at the gate, the legitimate analysis runs under gVisor (`runsc`), and the page checks the receipt hash and signature in the browser. Change one character and the check fails.*
 
-![Compromised-agent tab: curl|sh and env exfil blocked](docs/img/03-compromised-agent.png)
+![Compromised-agent tab: curl|sh and env exfil blocked](https://raw.githubusercontent.com/justrunme/airlock/main/docs/img/03-compromised-agent.png)
 
 *Tab 1 (Compromised agent). Scripted `curl | sh` and `/proc/self/environ` exfil are denied (`R-BIN-CURL`, `R-SHELL-EXEC-FILE`, `R-PY-ATTR-DENIED`, `R-PY-OPEN-PATH`). No container starts. Each denial gets a signed receipt.*
 
-![Real task with live model: one of two proposals blocked](docs/img/04-real-task.png)
+![Real task with live model: one of two proposals blocked](https://raw.githubusercontent.com/justrunme/airlock/main/docs/img/04-real-task.png)
 
 *Tab 2 (Real task, live `qwen3.8-27b` on Vultr Serverless Inference). On this run the first proposal was denied (`R-PY-PATHLIB-WRITE`). The gate still signed a receipt.*
 
-![Attack arena: curl|sh blocked](docs/img/05-arena-blocked.png)
+![Attack arena: curl|sh blocked](https://raw.githubusercontent.com/justrunme/airlock/main/docs/img/05-arena-blocked.png)
 
 *Tab 3 (Try to break it). Submit `curl | sh` yourself: `deny` with `R-BIN-CURL` / `R-SHELL-EXEC-FILE`, and no sandbox.*
 
-![Receipt verified in the browser](docs/img/06-verify-valid.png)
+![Receipt verified in the browser](https://raw.githubusercontent.com/justrunme/airlock/main/docs/img/06-verify-valid.png)
 
 *Tab 4 (Verify a receipt). The browser checks JSON, schema, SHA-256 over RFC 8785 JCS, and the Ed25519 signature via WebCrypto. Chain linkage is what `airlock verify-chain` is for; the page does not check it. Task-level Evidence Bundle checks use the separate offline CLI `airlock verify-bundle` (see docs/EVIDENCE_BUNDLE.md).*
 
-![Tampered receipt marked INVALID](docs/img/07-verify-invalid.png)
+![Tampered receipt marked INVALID](https://raw.githubusercontent.com/justrunme/airlock/main/docs/img/07-verify-invalid.png)
 
 *Same receipt after Tamper one character: the hash check fails and the page names the field that changed.*
 
@@ -202,12 +202,19 @@ Pitch stills (dark/terminal, same UI family): `/static/title-card.svg`, `/static
 
 ## Installation
 
-
 Requires Python 3.12+ and Docker.
+
+```bash
+pip install justrunme-airlock
+```
+
+For development:
 
 ```bash
 pip install -e ".[dev]"
 ```
+
+The command-line tool is `airlock` after installation.
 
 ## Usage
 
@@ -286,7 +293,7 @@ See `docs/CHECKS.md` for the complete list of 1297 collected tests.
 
 ## Author
 
-Andrey Lesnikov — Senior DevOps & AI Platform Engineer  
+Andrey Lesnikov  
 [https://orcid.org/0009-0004-7583-4314](https://orcid.org/0009-0004-7583-4314)
 
 ## License
